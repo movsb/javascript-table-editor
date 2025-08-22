@@ -492,6 +492,7 @@ class Table {
 				row.insertCell(position=='left' ? 0 : -1);
 			}
 			this._calcCoords();
+			this._save();
 			return;
 		}
 
