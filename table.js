@@ -557,17 +557,29 @@ class Table {
 			for(let c=1; c <= maxCols;) {
 				const cell = this.findCell(r, c);
 				const cc = this._getCoords(cell);
+				const rowSpan = cell.rowSpan;
 				// 单行元素。
-				if (cell.rowSpan == 1) {
+				if (rowSpan == 1) {
 					c += cell.colSpan;
 					continue;
 				}
 				// 向下展开。
 				if (r == cc.r1) {
 					this.selectCell(r, c);
-					// 可以考虑再合并。
-					// 不进栈。
+
+					// 均不进栈。
 					this._split();
+
+					// 把拆分了的再合并起来。
+					const r1 = r+1;
+					const r2 = (r+1)+(rowSpan-1)-1;
+					const c1 = c;
+					const c2 = c+cell.colSpan-1;
+					if(r1 != r2 || c1 != c2) {
+						this.selectRange(r1, c1, r2, c2);
+						this._merge();
+					}
+
 					c += cell.colSpan;
 					continue;
 				}
@@ -642,9 +654,14 @@ class Table {
 	}
 
 	merge() {
+		if(this._merge()) {
+			this._save();
+		}
+	}
+	_merge() {
 		if(this.selectedCells.length < 2) {
 			alert('Please select at least two cells to merge.');
-			return;
+			return false;
 		}
 
 		const firstCell = this.selectedCells[0];
@@ -689,7 +706,8 @@ class Table {
 		this._selectCell(firstCell);
 
 		this._calcCoords();
-		this._save();
+
+		return true;
 	}
 
 	split() {
@@ -991,12 +1009,17 @@ class TableTest {
 			{
 				note: '删除行，多行元素，向下展开',
 				init: t => { t.reset(3,3); t.selectRange(1,2,3,2); t.merge(); t.selectCell(1,1); t.deleteRows(); },
-				html: '<table><tbody><tr><td>1,1</td><td>1,2</td><td>1,3</td></tr><tr><td>2,1</td><td>2,2</td><td>2,3</td></tr></tbody></table>',
+				html: '<table><tbody><tr><td>1,1</td><td rowspan="2">1,2</td><td>1,3</td></tr><tr><td>2,1</td><td>2,3</td></tr></tbody></table>',
 			},
 			{
 				note: '删除行，重新计算坐标',
 				init: t => { t.reset(3,3); t.selectRange(1,3,3,3); t.merge(); t.selectRange(1,1,2,1); t.deleteRows(); },
 				html: '<table><tbody><tr><td>1,1</td><td>1,2</td><td>1,3</td></tr></tbody></table>',
+			},
+			{
+				note: '删除行，自动合并',
+				init: t => { t.reset(3,2); t.selectRange(1,1,3,1); t.merge(); t.selectCell(1,2); t.deleteRows(); },
+				html: '<table><tbody><tr><td rowspan="2">1,1</td><td>1,2</td></tr><tr><td>2,2</td></tr></tbody></table>',
 			},
 			{
 				note: '删除列，单列元素',
