@@ -144,6 +144,7 @@ class Table {
 		}
 
 		this._calcCoords();
+		// this._stackIndex = -1;
 		this._save();
 	}
 
@@ -560,7 +561,8 @@ class Table {
 				if (r == cc.r1) {
 					this.selectCell(r, c);
 					// 可以考虑再合并。
-					this.split();
+					// 不进栈。
+					this._split();
 					c += cell.colSpan;
 					continue;
 				}
@@ -612,7 +614,8 @@ class Table {
 				if(c == cc.c1) {
 					this.selectCell(r, c);
 					// 可以考虑再合并。
-					this.split();
+					// 不进栈。
+					this._split();
 					// 修改过需要重新计算。
 					this._calcCoords();
 					// 拆分过了，只剩 1 行
@@ -684,15 +687,26 @@ class Table {
 	}
 
 	split() {
+		if(this._split()) {
+			this._save();
+		}
+	}
+
+	/**
+	 * 
+	 * @param {boolean} save deleteCols / deleteRows 会调用，为了使 undo 栈只进 1，不 save。
+	 * @returns 
+	 */
+	_split() {
 		if (!this.curCell) {
 			alert('Please select a cell first.');
-			return;
+			return false;
 		}
 
 		const cell = this.curCell;
 		if(cell.rowSpan == 1 && cell.colSpan == 1) {
 			alert('not a merged cell');
-			return;
+			return false;
 		}
 
 		const cc = this._getCoords(cell);
@@ -745,7 +759,8 @@ class Table {
 		cell.removeAttribute('rowspan');
 
 		this._calcCoords();
-		this._save();
+
+		return true;
 	}
 
 	/**
@@ -996,7 +1011,12 @@ class TableTest {
 				note: '移动列',
 				init: t => { t.reset(4,4); t.selectRange(2,2,2,3); t.merge(); t.selectRange(3,1,4,1); t.merge(); t.selectRange(3,3,4,3); t.merge(); t.clearSelection(); t.moveCols(2,3,1); },
 				html: '<table><tbody><tr><td>1,1</td><td>1,2</td><td>1,3</td><td>1,4</td></tr><tr><td class="" colspan="2">2,1</td><td>2,3</td><td>2,4</td></tr><tr><td>3,1</td><td class="" rowspan="2">3,2</td><td>3,3</td><td class="" rowspan="2">3,4</td></tr><tr><td>4,1</td><td>4,3</td></tr></tbody></table>',
-			}
+			},
+			{
+				note: '撤销：不双重保存，因为内部调用了 split（原本也会再自己 save 一次）',
+				init: t => { t.reset(3,3); t.selectRange(1,3,3,3); t.merge(); t.selectCell(1,1); t.deleteRows(); t.undo(); },
+				html: '<table><tbody><tr><td>1,1</td><td>1,2</td><td class="" rowspan="3">1,3</td></tr><tr><td>2,1</td><td>2,2</td></tr><tr><td>3,1</td><td>3,2</td></tr></tbody></table>',
+			},
 		];
 	}
 
