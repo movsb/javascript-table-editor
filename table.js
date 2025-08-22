@@ -622,20 +622,34 @@ class Table {
 			for(let r=1; r <= rows;) {
 				const cell = this.findCell(r, c);
 				const cc = this._getCoords(cell);
+				const rowSpan = cell.rowSpan;
+				const colSpan = cell.colSpan;
 				// 单列元素。
-				if (cell.colSpan == 1) {
-					r += cell.rowSpan;
+				if (colSpan == 1) {
+					r += rowSpan;
 					toRemove.push(cell);
 					continue;
 				}
 				// 向右展开。
 				if(c == cc.c1) {
 					this.selectCell(r, c);
-					// 可以考虑再合并。
+
 					// 不进栈。
 					this._split();
+
+					// 把拆分了的再合并起来。
+					const r1 = r;
+					const c1 = c+1;
+					const r2 = r1 + rowSpan - 1;
+					const c2 = c1 + colSpan-1 - 1;
+					if(r1 != r2 || c1 != c2) {
+						this.selectRange(r1, c1, r2, c2);
+						this._merge();
+					}
+
 					// 修改过需要重新计算。
 					this._calcCoords();
+
 					// 拆分过了，只剩 1 行
 					r += 1;
 					toRemove.push(cell);
@@ -643,7 +657,7 @@ class Table {
 				}
 				// 来自左边。
 				cell.colSpan--;
-				r += cell.rowSpan;
+				r += rowSpan;
 			}
 			toRemove.forEach(cell => cell.remove());
 		});
@@ -1034,7 +1048,12 @@ class TableTest {
 			{
 				note: '删除列，多列元素，向右展开',
 				init: t => { t.reset(3,3); t.selectRange(2,2,3,3); t.merge(); t.selectCell(1,2); t.deleteCols(); },
-				html: '<table><tbody><tr><td>1,1</td><td>1,2</td></tr><tr><td>2,1</td><td>2,2</td></tr><tr><td>3,1</td><td>3,2</td></tr></tbody></table>',
+				html: '<table><tbody><tr><td>1,1</td><td>1,2</td></tr><tr><td>2,1</td><td rowspan="2">2,2</td></tr><tr><td>3,1</td></tr></tbody></table>',
+			},
+			{
+				note: '删除列，自动合并',
+				init: t => { t.reset(3,3); t.selectRange(1,1,1,3); t.merge(); t.selectCell(2,1); t.deleteCols(); },
+				html: '<table><tbody><tr><td colspan="2">1,1</td></tr><tr><td>2,1</td><td>2,2</td></tr><tr><td>3,1</td><td>3,2</td></tr></tbody></table>',
 			},
 			{
 				note: '切换表头',
