@@ -571,6 +571,7 @@ class Table {
 				c += cell.colSpan;
 			}
 			this.table.deleteRow(r - 1);
+			this._calcCoords();
 		});
 
 		this.clearSelection();
@@ -986,6 +987,11 @@ class TableTest {
 				note: '删除行，多行元素，向下展开',
 				init: t => { t.reset(3,3); t.selectRange(1,2,3,2); t.merge(); t.selectCell(1,1); t.deleteRows(); },
 				html: '<table><tbody><tr><td>1,1</td><td>1,2</td><td>1,3</td></tr><tr><td>2,1</td><td>2,2</td><td>2,3</td></tr></tbody></table>',
+			},
+			{
+				note: '删除行，重新计算坐标',
+				init: t => { t.reset(3,3); t.selectRange(1,3,3,3); t.merge(); t.selectRange(1,1,2,1); t.deleteRows(); },
+				html: '<table><tbody><tr><td>1,1</td><td>1,2</td><td>1,3</td></tr></tbody></table>',
 			},
 			{
 				note: '删除列，单列元素',
