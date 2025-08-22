@@ -156,6 +156,10 @@ class Table {
 		return this.table.outerHTML;
 	}
 
+	/**
+	 * 
+	 * @param {(cell: HTMLTableCellElement) => void} callback 
+	 */
 	_forEachCell(callback) {
 		Array.from(this.table.rows).forEach(row => {
 			Array.from(row.cells).forEach(cell => {
@@ -176,7 +180,6 @@ class Table {
 		cell._coords = coords;
 	}
 	
-	// 如果设置成功，返回 true。
 	/**
 	 * @param {Number} r1 
 	 * @param {Number} c1 
@@ -194,49 +197,59 @@ class Table {
 	 * @param {HTMLTableCellElement} cell2 
 	 */
 	_selectRange(cell1, cell2) {
-		// console.log('selectRange:', cell1, cell2);
+		const expandRange = (cell1, cell2) => {
+			let cc1 = this._getCoords(cell1);
+			let cc2 = this._getCoords(cell2);
 
-		let cc1 = this._getCoords(cell1);
-		let cc2 = this._getCoords(cell2);
+			const r1 = Math.min(cc1.r1, cc2.r1);
+			const c1 = Math.min(cc1.c1, cc2.c1);
+			const r2 = Math.max(cc1.r2, cc2.r2);
+			const c2 = Math.max(cc1.c2, cc2.c2);
 
-		if (!(cc1.r1 <= cc2.r1 && cc1.c1 <= cc2.c1)) { // ! ➡️↘️⬇️
-			if(cc1.c1 == cc2.c1 || cc1.r1 == cc2.r1) { //   ⬆️⬅️
-				const t = cell1;
-				cell1 = cell2;
-				cell2 = t;
-				cc1 = this._getCoords(cell1);
-				cc2 = this._getCoords(cell2);
-			} else if (cc1.c1 > cc2.c1) { // ️↙️↖️
-				return this.selectRange(cc1.r1, cc2.c1, cc2.r1, cc1.c1);
-			} else { // ↗️
-				return this.selectRange(cc2.r1, cc1.c1, cc1.r1, cc2.c1);
+			let mr1 = r1, mr2 = r2, mc1 = c1, mc2 = c2;
+
+			for(let r=r1; r<=r2; r++) {
+				for(let c=c1; c<=c2; c++) {
+					const cell = this.findCell(r, c);
+					const cc = this._getCoords(cell);
+					mr1 = Math.min(mr1, cc.r1);
+					mr2 = Math.max(mr2, cc.r2);
+					mc1 = Math.min(mc1, cc.c1);
+					mc2 = Math.max(mc2, cc.c2);
+				}
 			}
+
+			return {r1: mr1, r2: mr2, c1: mc1, c2: mc2};
 		}
 
-		this.clearSelection();
+		const { r1, c1, r2, c2 } = expandRange(cell1, cell2);
 
+		this.clearSelection();
 		let valid = true;
 
 		Array.from(this.table.rows).forEach(row=> {
 			Array.from(row.cells).forEach(cell=> {
 				const cc = this._getCoords(cell);
-				let some = false, all = true;
+
+				let some = false;   // 部分包含？
+				let all = true;     // 全部包含？
 
 				// 被包含元素必须被完整包含。
 				for(let i=cc.r1; i<=cc.r2; i++) {
 					for(let j=cc.c1; j<=cc.c2; j++) {
-						const within = cc1.r1 <= i && i <= cc2.r2 && cc1.c1 <= j && j <= cc2.c2;
+						const within = r1 <= i && i <= r2 && c1 <= j && j <= c2;
 						some |= within;
 						all  &= within;
 					}
 				}
 
-				if(!some) { return; }
-				if(all) {
-					this._highlight(cell, true);
-					this.selectedCells.push(cell);
-				} else {
-					valid = false;
+				if(some) {
+					if(all) {
+						this._highlight(cell, true);
+						this.selectedCells.push(cell);
+					} else {
+						valid = false;
+					}
 				}
 			});
 		});
@@ -900,6 +913,11 @@ class TableTest {
 				html: '<table><tbody><tr><td>1,1</td><td class="selected">1,2</td></tr><tr><td>2,1</td><td>2,2</td></tr></tbody></table>',
 			},
 			{
+				note: '选区：↗️',
+				init: t => { t.reset(2,2); t.selectRange(1,1,2,1); t.merge(); t.selectRange(2,1,1,2); },
+				html: '<table><tbody><tr><td class="selected" rowspan="2">1,1</td><td class="selected">1,2</td></tr><tr><td class="selected">2,2</td></tr></tbody></table>',
+			},
+			{
 				init: t => { t.reset(2,2); t.selectCell(1,1); t.addRowAbove(); },
 				html: '<table><tbody><tr><td>1,1</td><td>1,2</td></tr><tr><td class="selected">2,1</td><td>2,2</td></tr><tr><td>3,1</td><td>3,2</td></tr></tbody></table>',
 			},
@@ -994,7 +1012,7 @@ class TableTest {
 			}
 			const html = table.content;
 			if(html != t.html) {
-				console.table([`测试错误：${t.note ?? ''}`, t.html, html]);
+				console.table({note: `测试错误：${t.note ?? ''}`, want: t.html, got: html});
 				throw new Error(`测试错误: @${index}`);
 			}
 		});
@@ -1010,4 +1028,4 @@ try {
 
 let t = new Table();
 t._showCoords = true;
-t.reset(4,4);
+t.reset(8,8);
