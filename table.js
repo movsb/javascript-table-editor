@@ -23,26 +23,29 @@ class Table {
 		this._handleEvents();
 	}
 
-	/**
-	 * 从事件元素 element 获取当前的单元格。
-	 * @param {HTMLElement} element 
-	 * @returns {HTMLTableCellElement | null}
-	 */
-	_getCell(element) {
-		do {
-			element = element.closest('td') ?? element.closest('th');
-			if(element && element.closest('table') == this.table) { return element; }
-		} while(element);
-	}
-
 	_handleEvents() {
+		/**
+		 * 从事件元素 element 获取当前的单元格。
+		 * @param {HTMLElement} element 
+		 * @returns {HTMLTableCellElement | null}
+		 */
+		const _getCell = (element) => {
+			if(element instanceof HTMLDocument) return null;
+			for (; element ;) {
+				element = element.closest('td') || element.closest('th');
+				if(element && element.closest('table') == this.table) {
+					return element;
+				}
+			}
+		}
+
 		this.table.addEventListener('click', (e) => {
-			const cell = this._getCell(e.target);
+			const cell = _getCell(e.target);
 			if (!cell) { return; }
 			this._selectCell(cell, false);
 		});
 		this.table.addEventListener('dblclick', (e) => {
-			const cell = this._getCell(e.target);
+			const cell = _getCell(e.target);
 			if (!cell) { return; }
 			if(cell == this.curCell && this._isEditing(cell)) {
 				return;
@@ -55,14 +58,14 @@ class Table {
 		});
 	
 		this.table.addEventListener('mousedown', e => {
-			const cell = this._getCell(e.target);
+			const cell = _getCell(e.target);
 			if(!cell) { return; }
 
 			const startCell = cell;
 
 			const moveHandler = e => {
 				// console.log('mousemove:', e.target);
-				const cell = this._getCell(e.target);
+				const cell = _getCell(e.target);
 				if(!cell) { return; }
 				// 防止在同一个元素内移动时因频繁 clearSelection 导致失去编辑焦点。
 				if (cell == startCell) {
