@@ -68,7 +68,7 @@ class Table {
 				const cell = _getCell(e.target);
 				if(!cell) { return; }
 				// 防止在同一个元素内移动时因频繁 clearSelection 导致失去编辑焦点。
-				if (cell == startCell) {
+				if (cell == startCell && this.selectedCells.length <= 1) {
 					return;
 				}
 				const endCell = cell;
