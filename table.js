@@ -735,6 +735,90 @@ class Table {
 		this._save();
 	}
 
+	/**
+	 * 移动指定位置的列到指定位置。
+	 * TODO 还应该允许类似上面占两列，下面各自一列的情况。保持上面不动，下面交换。
+	 * @param {number} from     源列号（从 1 开始）。
+	 * @param {number} count    列数。
+	 * @param {number} to       目的列号。
+	 */
+	moveCols(from, count, to) {
+		const c1 = from, c2 = from + count - 1;
+		const maxCols = this._maxCols();
+		if(
+			(c1 < 1 || c2 > maxCols || c1 > c2)     // 源列号无效
+			|| (to < 1 || to > maxCols + 1)         // 目标列号无效
+			|| (c1 <= to && to <= c2)               // 有重合
+		) {
+			return false;
+		}
+
+		// 判断选择列的数据没有跨越到其它列。
+		const rows = this.table.rows.length;
+		for(let c = c1; c <= c2; c++) {
+			for(let r = 1; r <= rows;) {
+				const cell = this.findCell(r, c);
+				const cc = this._getCoords(cell);
+				// 列来自左边，或者跨越到了右边。
+				if(cc.c1 < c1 || cc.c2 > c2) {
+					return false;
+				}
+				r += cell.rowSpan;
+			}
+		}
+		// 且目标列只有一列或者不处在里面。
+		for(let r = 1; r <= rows; r++) {
+			const cell = this.findCell(r, to);
+			const cc = this._getCoords(cell);
+			if(cell.colSpan > 1 && to != cc.c1) {
+				return false;
+			}
+		}
+
+		// 正式移动。
+		const findLeft = (r, to) => {
+			for (; to >= 1; ) {
+				if(to == 1) { return null; }
+				const cell = this.findCell(r, to);
+				const cc = this._getCoords(cell);
+				if(cc.c1 == to && cc.r1 == r) {
+					return cell;
+				}
+				to--;
+			}
+		};
+		const rowsToMove = [];
+		for(let r = 1; r <= rows; r++) {
+			const left = findLeft(r, to);
+			let colsToMove = [];
+			for(let c = c1; c <= c2; c++) {
+				const cell = this.findCell(r, c);
+				const cc = this._getCoords(cell);
+				// 左上角单元格/独立单元格。
+				if(cc.c1 == c && cc.r1 == r) {
+					colsToMove.push(cell);
+				}
+			}
+			rowsToMove.push({left, colsToMove});
+		}
+		for(let r = 1; r <= rows; r++) {
+			const row = this.table.rows[r - 1];
+			const data = rowsToMove[r-1];
+			let left = data.left;
+			data.colsToMove.forEach(cell => {
+				if(!left) { row.insertAdjacentElement('afterbegin', cell); }
+				else { left.insertAdjacentElement('afterend', cell); }
+				left = cell;
+			});
+		}
+
+		this._calcCoords();
+		this._save();
+
+		return true;
+	}
+
+	// TODO 由于列数总是一致的，所以取第一行的最后一列即可，无需判断所有行。
 	_maxCols() {
 		let maxCol = 0;
 		Array.from(this.table.rows).forEach(row=> {
@@ -890,6 +974,11 @@ class TableTest {
 				init: t => { t.reset(3,3); t.selectRange(1,1,1,3); t.toHeaderCells(); t.selectRange(1,1,3,1); t.toHeaderCells(); },
 				html: '<table><tbody><tr><th class="">1,1</th><th>1,2</th><th>1,3</th></tr><tr><th>2,1</th><td>2,2</td><td>2,3</td></tr><tr><th>3,1</th><td>3,2</td><td>3,3</td></tr></tbody></table>',
 			},
+			{
+				note: '移动列',
+				init: t => { t.reset(4,4); t.selectRange(2,2,2,3); t.merge(); t.selectRange(3,1,4,1); t.merge(); t.selectRange(3,3,4,3); t.merge(); t.clearSelection(); t.moveCols(2,3,1); },
+				html: '<table><tbody><tr><td>1,1</td><td>1,2</td><td>1,3</td><td>1,4</td></tr><tr><td class="" colspan="2">2,1</td><td>2,3</td><td>2,4</td></tr><tr><td>3,1</td><td class="" rowspan="2">3,2</td><td>3,3</td><td class="" rowspan="2">3,4</td></tr><tr><td>4,1</td><td>4,3</td></tr></tbody></table>',
+			}
 		];
 	}
 
@@ -919,5 +1008,6 @@ try {
 	console.error(e);
 }
 
-let table = new Table();
-table.reset(3,3);
+let t = new Table();
+t._showCoords = true;
+t.reset(4,4);

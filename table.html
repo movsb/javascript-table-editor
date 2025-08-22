@@ -8,6 +8,9 @@
 		color: white;
 	}
 }
+button {
+	color-scheme: light dark;
+}
 table, td, th {
 	border: 1px solid gray;
 	border-collapse: collapse;
@@ -34,34 +37,34 @@ td.editing, th.editing {
 </head>
 <body>
 <p>
-	<button type="button" onclick="table.reset()">Reset</button>
+	<button type="button" onclick="t.reset()">Reset</button>
 </p>
 <p>
-	<label><input name="show_coords" type="checkbox" onclick="table._showCoords=this.checked" autocomplete="off">Show Coords</label>
+	<label><input name="show_coords" type="checkbox" onclick="t._showCoords=this.checked" autocomplete="off">Show Coords</label>
 </p>
 <p>
-	<button type="button" onclick="table.addRowAbove()">Add Row Above</button>
-	<button type="button" onclick="table.addRowBelow()">Add Row Below</button>
+	<button type="button" onclick="t.addRowAbove()">Add Row Above</button>
+	<button type="button" onclick="t.addRowBelow()">Add Row Below</button>
 </p>
 <p>
-	<button type="button" onclick="table.addColLeft()">Add Col Left</button>
-	<button type="button" onclick="table.addColRight()">Add Col Right</button>
+	<button type="button" onclick="t.addColLeft()">Add Col Left</button>
+	<button type="button" onclick="t.addColRight()">Add Col Right</button>
 </p>
 <p>
-	<button type="button" onclick="table.deleteRows()">Delete Rows</button>
-	<button type="button" onclick="table.deleteCols()">Delete Cols</button>
+	<button type="button" onclick="t.deleteRows()">Delete Rows</button>
+	<button type="button" onclick="t.deleteCols()">Delete Cols</button>
 </p>
 <p>
-	<button type="button" onclick="table.merge()">Merge</button>
-	<button type="button" onclick="table.split()">Split</button>
+	<button type="button" onclick="t.merge()">Merge</button>
+	<button type="button" onclick="t.split()">Split</button>
 </p>
 <p>
-	<button type="button" onclick="table.undo()">Undo</button>
-	<button type="button" onclick="table.redo()">Redo</button>
+	<button type="button" onclick="t.undo()">Undo</button>
+	<button type="button" onclick="t.redo()">Redo</button>
 </p>
 <p>
-	<button type="button" onclick="table.toHeaderCells()">To Header Cells</button>
-	<button type="button" onclick="table.toDataCells()">To Data Cells</button>
+	<button type="button" onclick="t.toHeaderCells()">To Header Cells</button>
+	<button type="button" onclick="t.toDataCells()">To Data Cells</button>
 </p>
 <script src="table.js"></script>
 </body>
