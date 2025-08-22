@@ -39,7 +39,7 @@ class Table {
 		this.table.addEventListener('click', (e) => {
 			const cell = this._getCell(e.target);
 			if (!cell) { return; }
-			this._selectCell(cell);
+			this._selectCell(cell, false);
 		});
 		this.table.addEventListener('dblclick', (e) => {
 			const cell = this._getCell(e.target);
@@ -48,7 +48,9 @@ class Table {
 				return;
 			} 
 			// 被反转选择清除掉了，选回来。
-			this._selectCell(cell);
+			// 注意，双击之前可能已经是单选状态，所以三击之后再次
+			// 选择会导致清除（共四次），所以这里要 force。
+			this._selectCell(cell, true);
 			this._edit(cell, true);
 		});
 	
@@ -269,13 +271,13 @@ class Table {
 	 */
 	selectCell(row, col) {
 		const cell = this.findCell(row, col);
-		this._selectCell(cell);
+		this._selectCell(cell, true);
 		return cell;
 	}
 
 	/** @param {HTMLTableCellElement} col */
-	_selectCell(cell) {
-		if(cell == this.curCell) {
+	_selectCell(cell, force) {
+		if(!force && cell == this.curCell) {
 			if(this._isEditing(cell)) return;
 			else return this.clearSelection();
 		}
@@ -717,7 +719,7 @@ class Table {
 		}
 
 		// 合并后把当前单元格设置为第一个单元格。
-		this._selectCell(firstCell);
+		this._selectCell(firstCell, true);
 
 		this._calcCoords();
 
