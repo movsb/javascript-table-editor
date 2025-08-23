@@ -56,33 +56,68 @@ class Table {
 			this._selectCell(cell, true);
 			this._edit(cell, true);
 		});
-	
-		this.table.addEventListener('mousedown', e => {
-			const cell = _getCell(e.target);
-			if(!cell) { return; }
 
-			const startCell = cell;
-
-			const moveHandler = e => {
-				// console.log('mousemove:', e.target);
+		if (!('ontouchstart' in window)) {
+			this.table.addEventListener('mousedown', e => {
 				const cell = _getCell(e.target);
 				if(!cell) { return; }
-				// 防止在同一个元素内移动时因频繁 clearSelection 导致失去编辑焦点。
-				if (cell == startCell && this.selectedCells.length <= 1) {
-					return;
-				}
-				const endCell = cell;
-				if(!this._selectRange(startCell, endCell)) {
-					// console.log('选区无效。');
-				}
-			};
 
-			document.addEventListener('mousemove', moveHandler);
-			document.addEventListener('mouseup', ()=>{
-				// console.log('mouseup:', e.target);
-				document.removeEventListener('mousemove', moveHandler);
-			}, { once: true });
-		});
+				const startCell = cell;
+
+				const moveHandler = e => {
+					const cell = _getCell(e.target);
+					if(!cell) { return; }
+					// 防止在同一个元素内移动时因频繁 clearSelection 导致失去编辑焦点。
+					if (cell == startCell && this.selectedCells.length <= 1) {
+						return;
+					}
+					this._selectRange(startCell, cell);
+				};
+
+				document.addEventListener('mousemove', moveHandler);
+				document.addEventListener('mouseup', ()=>{
+					document.removeEventListener('mousemove', moveHandler);
+				}, { once: true });
+			});
+		} else {
+			// 不知道为什么必须定义在外面，否则一直是固定值。
+			/** @type {HTMLTableCellElement} */
+			let startCell, endCell;
+			let clickTimer = null;
+			this.table.addEventListener('touchstart', e => {
+				if(e.touches.length > 1) { return; }
+
+				const cell = _getCell(e.target);
+				if(!cell) { return; }
+
+				startCell = cell;
+				endCell = cell;
+
+				/**
+				 * 
+				 * @param {TouchEvent} e 
+				 * @returns 
+				 */
+				const moveHandler = e => {
+					const target = document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY);
+					const cell = _getCell(target);
+					if(!cell) { return; }
+
+					// 防止在同一个元素内移动时因频繁 clearSelection 导致失去编辑焦点。
+					if (cell == startCell && this.selectedCells.length <= 1) {
+						return;
+					}
+
+					this._selectRange(startCell, cell);
+					endCell = cell;
+				};
+
+				document.addEventListener('touchmove', moveHandler);
+				document.addEventListener('touchend', (e)=>{
+					document.removeEventListener('touchmove', moveHandler);
+				}, { once: true });
+			});
+		}
 	}
 
 	undo() {
