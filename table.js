@@ -881,7 +881,11 @@ class Table {
 			}
 		}
 
-		// 正式移动。
+		/**
+		 * @param {number} r 
+		 * @param {number} to 
+		 * @returns {HTMLTableCellElement}
+		 */
 		const findLeft = (r, to) => {
 			for (; to >= 1; ) {
 				if(to == 1) { return null; }
@@ -896,26 +900,80 @@ class Table {
 		const rowsToMove = [];
 		for(let r = 1; r <= rows; r++) {
 			const left = findLeft(r, to);
-			let colsToMove = [];
+			let cellsToMove = [];
 			for(let c = c1; c <= c2; c++) {
 				const cell = this.findCell(r, c);
 				const cc = this._getCoords(cell);
 				// 左上角单元格/独立单元格。
 				if(cc.c1 == c && cc.r1 == r) {
-					colsToMove.push(cell);
+					cellsToMove.push(cell);
 				}
 			}
-			rowsToMove.push({left, colsToMove});
+			rowsToMove.push({left, cellsToMove});
 		}
 		for(let r = 1; r <= rows; r++) {
 			const row = this.table.rows[r - 1];
 			const data = rowsToMove[r-1];
 			let left = data.left;
-			data.colsToMove.forEach(cell => {
+			data.cellsToMove.forEach(cell => {
 				if(!left) { row.insertAdjacentElement('afterbegin', cell); }
 				else { left.insertAdjacentElement('afterend', cell); }
 				left = cell;
 			});
+		}
+
+		this._calcCoords();
+		this._save();
+
+		return true;
+	}
+
+	/**
+	 * 移动指定位置的行到指定位置。
+	 * @param {number} from     源行号（从 1 开始）
+	 * @param {number} count    行数
+	 * @param {number} to       目的行号
+	 */
+	moveRows(from, count, to) {
+		const r1 = from, r2 = from + count - 1;
+		const maxRows = this.table.rows.length;
+		const maxCols = this._maxCols();
+		
+		if(
+			(r1 < 1 || r2 > maxRows || r1 > r2)     // 源行号无效
+			|| (to < 1 || to > maxRows + 1)         // 目标行号无效
+			|| (r1 <= to && to <= r2)               // 有重合
+		) {
+			return false;
+		}
+
+		// 判断选择行的数据没有跨越到其它行。
+		for(let r=r1; r<=r2; r++) {
+			for(let c=1; c<=maxCols; c++) {
+				const cell = this.findCell(r, c);
+				const cc = this._getCoords(cell);
+				// 行来自上面，或者跨越到了下面。
+				if(cc.r1 < r1 || cc.r2 > r2) {
+					return false;
+				}
+			}
+		}
+		// 目标行只有一行且不处在里面。
+		for(let c=1; c<= maxCols; c++) {
+			const cell = this.findCell(to, c);
+			const cc = this._getCoords(cell);
+			if(cell.rowSpan > 1 && to != cc.r1) {
+				return false;
+			}
+		}
+
+		const rowsToMove = Array.from(this.table.rows).slice(r1-1, r2+1-1);
+		if(to == maxRows+1) {
+			const last = this.table.rows[maxRows-1];
+			rowsToMove.forEach(r => last.insertAdjacentElement('afterend', r));
+		} else {
+			const row = this.table.rows[to - 1];
+			rowsToMove.forEach(r => row.insertAdjacentElement('beforebegin', r));
 		}
 
 		this._calcCoords();
@@ -1104,6 +1162,11 @@ class TableTest {
 				note: '移动列',
 				init: t => { t.reset(4,4); t.selectRange(2,2,2,3); t.merge(); t.selectRange(3,1,4,1); t.merge(); t.selectRange(3,3,4,3); t.merge(); t.clearSelection(); t.moveCols(2,3,1); },
 				html: '<table><tbody><tr><td>1,1</td><td>1,2</td><td>1,3</td><td>1,4</td></tr><tr><td colspan="2">2,1</td><td>2,3</td><td>2,4</td></tr><tr><td>3,1</td><td rowspan="2">3,2</td><td>3,3</td><td rowspan="2">3,4</td></tr><tr><td>4,1</td><td>4,3</td></tr></tbody></table>',
+			},
+			{
+				note: '移动行',
+				init: t => { t.reset(4,3); t.selectRange(3,2,4,3); t.merge(); t.moveRows(3,2,2); },
+				html: '<table><tbody><tr><td>1,1</td><td>1,2</td><td>1,3</td></tr><tr><td>2,1</td><td rowspan="2" colspan="2" class="selected">2,2</td></tr><tr><td>3,1</td></tr><tr><td>4,1</td><td>4,2</td><td>4,3</td></tr></tbody></table>',
 			},
 			{
 				note: '撤销：不双重保存，因为内部调用了 split（原本也会再自己 save 一次）',
