@@ -38,8 +38,8 @@ td.editing, th.editing {
 </head>
 <body>
 <p>
-	<button type="button" onclick="t.reset()">Reset</button>
-	<button type="button" onclick="t._calcCoords(true);t._save()">Show Coords</button>
+	<input name="size" type="text" value="4,4" style="width:10ch;" autocomplete="off">
+	<button type="button" onclick="reset()">Reset</button>
 </p>
 <p>
 	<button type="button" onclick="t.addRowAbove()">Add Row Above</button>
@@ -69,6 +69,22 @@ td.editing, th.editing {
 	<button type="button" onclick="t.toDataRows()">To Data Rows</button>
 	<button type="button" onclick="t.toDataCols()">To Data Cols</button>
 </p>
+<p>Select & Drag then Drop to Re-Order Rows/Cols.</p>
+<p>Double-click to Edit.</p>
 <script src="table.js"></script>
+<script>
+let t = new Table();
+
+function reset() {
+	/** @type {HTMLInputElement} */
+	let input = document.querySelector('input[name=size]');
+	let d = input.value.split(',').map(s => parseInt(s));
+	t._resetWithCoords = true;
+	t.reset(d[0],d[1]);
+	t._save();
+}
+
+reset();
+</script>
 </body>
 </html>

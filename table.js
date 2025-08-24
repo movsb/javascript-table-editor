@@ -13,8 +13,8 @@ class Table {
 		 */
 		this.selectedCells = [];
 
-		// /** @type {Boolean} 是否展示调试内容。 */
-		// this._showCoords = false;
+		/** @type {Boolean} 是否展示调试内容。 */
+		this._resetWithCoords = false;
 		/** @type {Boolean} 是否 fix empty line height */
 		this._fixLineHeight = true;
 
@@ -341,8 +341,7 @@ class Table {
 			}
 		}
 
-		this._calcCoords();
-		// this._stackIndex = -1;
+		this._calcCoords(this._resetWithCoords);
 		this._save();
 	}
 
@@ -777,6 +776,15 @@ class Table {
 		this._save();
 	}
 
+	/**
+	 * 在拆分单元格时，转移数据。
+	 * @param {HTMLTableCellElement} from 
+	 * @param {HTMLTableCellElement} to 
+	 */
+	_copyCellData(from, to) {
+		to.innerHTML = from.innerHTML;
+	}
+
 	deleteRows() {
 		const rows = [];
 		if (this.curCell) {
@@ -815,11 +823,16 @@ class Table {
 					// 均不进栈。
 					this._split();
 
+					// 拆分后坐标会刷新，可以正确找到下一个。
+					const below = this.findCell(r+1,c);
+					this._copyCellData(cell, below);
+
 					// 把拆分了的再合并起来。
 					const r1 = r+1;
 					const r2 = (r+1)+(rowSpan-1)-1;
 					const c1 = c;
 					const c2 = c+cell.colSpan-1;
+					// 拆分后仍然是多行/多列。
 					if(r1 != r2 || c1 != c2) {
 						this.selectRange(r1, c1, r2, c2);
 						this._merge();
@@ -881,6 +894,10 @@ class Table {
 
 					// 不进栈。
 					this._split();
+
+					// 拆分后坐标会刷新，可以正确找到右一个。
+					const right = this.findCell(r,c+1);
+					this._copyCellData(cell, right);
 
 					// 把拆分了的再合并起来。
 					const r1 = r;
@@ -1315,49 +1332,53 @@ class TableTest {
 				html: '<table><tbody><tr><td rowspan="2" class="selected">1,1</td><td class="selected">1,2</td></tr><tr><td class="selected">2,2</td></tr></tbody></table>',
 			},
 			{
+				note: '插入行：向上',
 				init: t => { t.reset(2,2); t.selectCell(1,1); t.addRowAbove(); },
-				html: '<table><tbody><tr><td>1,1</td><td>1,2</td></tr><tr><td class="selected">2,1</td><td>2,2</td></tr><tr><td>3,1</td><td>3,2</td></tr></tbody></table>',
+				html: '<table><tbody><tr><td></td><td></td></tr><tr><td class="selected">1,1</td><td>1,2</td></tr><tr><td>2,1</td><td>2,2</td></tr></tbody></table>',
 			},
 			{
 				init: t => { t.reset(2,2); t.selectRange(1,2,2,2); t.merge(); },
 				html: '<table><tbody><tr><td>1,1</td><td rowspan="2" class="selected">1,2</td></tr><tr><td>2,1</td></tr></tbody></table>',
 			},
 			{
+				note: '插入行：内部包含合并',
 				init: t => { t.reset(2,2); t.selectRange(1,2,2,2); t.merge(); t.selectCell(1,1); t.addRowAbove(); t.addRowBelow(); },
-				html: '<table><tbody><tr><td>1,1</td><td>1,2</td></tr><tr><td class="selected">2,1</td><td rowspan="3">2,2</td></tr><tr><td>3,1</td></tr><tr><td>4,1</td></tr></tbody></table>',
+				html:  '<table><tbody><tr><td></td><td></td></tr><tr><td class="selected">1,1</td><td rowspan="3">1,2</td></tr><tr><td></td></tr><tr><td>2,1</td></tr></tbody></table>',
 			},
 			{
+				note: '插入列：在合并列的右边',
 				init: t => { t.reset(2,1); t.selectRange(1,1,2,1); t.merge(); t.addColRight(); },
-				html: '<table><tbody><tr><td rowspan="2" class="selected">1,1</td><td>1,2</td></tr><tr><td>2,2</td></tr></tbody></table>',
+				html: '<table><tbody><tr><td rowspan="2" class="selected">1,1</td><td></td></tr><tr><td></td></tr></tbody></table>',
 			},
 			{
 				init: t => { t.reset(2,2); t.selectRange(1,2,2,2); t.merge(); t.addColLeft(); },
-				html: '<table><tbody><tr><td>1,1</td><td>1,2</td><td rowspan="2" class="selected">1,3</td></tr><tr><td>2,1</td><td>2,2</td></tr></tbody></table>',
+				html: '<table><tbody><tr><td>1,1</td><td></td><td rowspan="2" class="selected">1,2</td></tr><tr><td>2,1</td><td></td></tr></tbody></table>',
 			},
 			{
 				init: t => { t.reset(3,2); t.selectRange(1,1,3,1); t.merge(); t.selectCell(2,2); t.addColLeft(); },
-				html: '<table><tbody><tr><td rowspan="3">1,1</td><td>1,2</td><td>1,3</td></tr><tr><td>2,2</td><td class="selected">2,3</td></tr><tr><td>3,2</td><td>3,3</td></tr></tbody></table>',
+				html: '<table><tbody><tr><td rowspan="3">1,1</td><td></td><td>1,2</td></tr><tr><td></td><td class="selected">2,2</td></tr><tr><td></td><td>3,2</td></tr></tbody></table>',
 			},
 			{
 				init: t => { t.reset(3,2); t.selectRange(1,1,3,1); t.merge(); t.selectCell(2,2); t.addColRight(); t.selectRange(2,2,2,3); t.merge(); t.addColLeft(); },
-				html: '<table><tbody><tr><td rowspan="3">1,1</td><td>1,2</td><td>1,3</td><td>1,4</td></tr><tr><td>2,2</td><td colspan="2" class="selected">2,3</td></tr><tr><td>3,2</td><td>3,3</td><td>3,4</td></tr></tbody></table>',
+				html: '<table><tbody><tr><td rowspan="3">1,1</td><td></td><td>1,2</td><td></td></tr><tr><td></td><td colspan="2" class="selected">2,2</td></tr><tr><td></td><td>3,2</td><td></td></tr></tbody></table>',
 			},
 			{
 				init: t => { t.reset(3,3); t.selectRange(2,2,3,3); t.merge(); t.selectCell(1,2); t.addColLeft(); },
-				html: '<table><tbody><tr><td>1,1</td><td>1,2</td><td class="selected">1,3</td><td>1,4</td></tr><tr><td>2,1</td><td>2,2</td><td rowspan="2" colspan="2">2,3</td></tr><tr><td>3,1</td><td>3,2</td></tr></tbody></table>',
+				html: '<table><tbody><tr><td>1,1</td><td></td><td class="selected">1,2</td><td>1,3</td></tr><tr><td>2,1</td><td></td><td rowspan="2" colspan="2">2,2</td></tr><tr><td>3,1</td><td></td></tr></tbody></table>',
 			},
 			{
+				note: '合并并拆分',
 				init: t => { t.reset(3,3); t.selectRange(2,2,3,3); t.merge(); t.split(); },
-				html: '<table><tbody><tr><td>1,1</td><td>1,2</td><td>1,3</td></tr><tr><td>2,1</td><td class="selected">2,2</td><td>2,3</td></tr><tr><td>3,1</td><td>3,2</td><td>3,3</td></tr></tbody></table>',
+				html: '<table><tbody><tr><td>1,1</td><td>1,2</td><td>1,3</td></tr><tr><td>2,1</td><td class="selected">2,2</td><td></td></tr><tr><td>3,1</td><td></td><td></td></tr></tbody></table>',
 			},
 			{
 				init: t => { t.reset(2,2); t.selectRange(1,1,2,1); t.merge(); t.selectRange(1,2,2,2);  t.merge(); t.split(); },
-				html: '<table><tbody><tr><td rowspan="2">1,1</td><td class="selected">1,2</td></tr><tr><td>2,2</td></tr></tbody></table>',
+				html: '<table><tbody><tr><td rowspan="2">1,1</td><td class="selected">1,2</td></tr><tr><td></td></tr></tbody></table>',
 			},
 			{
 				note: '删除行，单行元素',
 				init: t => { t.reset(3,3); t.selectCell(1,2); t.deleteRows(); },
-				html: '<table><tbody><tr><td>1,1</td><td>1,2</td><td>1,3</td></tr><tr><td>2,1</td><td>2,2</td><td>2,3</td></tr></tbody></table>',
+				html: '<table><tbody><tr><td>2,1</td><td>2,2</td><td>2,3</td></tr><tr><td>3,1</td><td>3,2</td><td>3,3</td></tr></tbody></table>',
 			},
 			{
 				note: '删除行，多行元素，来自上面',
@@ -1367,22 +1388,22 @@ class TableTest {
 			{
 				note: '删除行，多行元素，向下展开',
 				init: t => { t.reset(3,3); t.selectRange(1,2,3,2); t.merge(); t.selectCell(1,1); t.deleteRows(); },
-				html: '<table><tbody><tr><td>1,1</td><td rowspan="2">1,2</td><td>1,3</td></tr><tr><td>2,1</td><td>2,3</td></tr></tbody></table>',
+				html: '<table><tbody><tr><td>2,1</td><td rowspan="2">1,2</td><td>2,3</td></tr><tr><td>3,1</td><td>3,3</td></tr></tbody></table>',
 			},
 			{
 				note: '删除行，重新计算坐标',
 				init: t => { t.reset(3,3); t.selectRange(1,3,3,3); t.merge(); t.selectRange(1,1,2,1); t.deleteRows(); },
-				html: '<table><tbody><tr><td>1,1</td><td>1,2</td><td>1,3</td></tr></tbody></table>',
+				html: '<table><tbody><tr><td>3,1</td><td>3,2</td><td>1,3</td></tr></tbody></table>',
 			},
 			{
 				note: '删除行，自动合并',
 				init: t => { t.reset(3,2); t.selectRange(1,1,3,1); t.merge(); t.selectCell(1,2); t.deleteRows(); },
-				html: '<table><tbody><tr><td rowspan="2">1,1</td><td>1,2</td></tr><tr><td>2,2</td></tr></tbody></table>',
+				html: '<table><tbody><tr><td rowspan="2">1,1</td><td>2,2</td></tr><tr><td>3,2</td></tr></tbody></table>',
 			},
 			{
 				note: '删除列，单列元素',
 				init: t => { t.reset(3,3); t.selectCell(1,2); t.deleteCols(); },
-				html: '<table><tbody><tr><td>1,1</td><td>1,2</td></tr><tr><td>2,1</td><td>2,2</td></tr><tr><td>3,1</td><td>3,2</td></tr></tbody></table>',
+				html: '<table><tbody><tr><td>1,1</td><td>1,3</td></tr><tr><td>2,1</td><td>2,3</td></tr><tr><td>3,1</td><td>3,3</td></tr></tbody></table>',
 			},
 			{
 				note: '删除列，多列元素，来自左边',
@@ -1392,27 +1413,27 @@ class TableTest {
 			{
 				note: '删除列，多列元素，向右展开',
 				init: t => { t.reset(3,3); t.selectRange(2,2,3,3); t.merge(); t.selectCell(1,2); t.deleteCols(); },
-				html: '<table><tbody><tr><td>1,1</td><td>1,2</td></tr><tr><td>2,1</td><td rowspan="2">2,2</td></tr><tr><td>3,1</td></tr></tbody></table>',
+				html: '<table><tbody><tr><td>1,1</td><td>1,3</td></tr><tr><td>2,1</td><td rowspan="2">2,2</td></tr><tr><td>3,1</td></tr></tbody></table>',
 			},
 			{
 				note: '删除列，自动合并',
 				init: t => { t.reset(3,3); t.selectRange(1,1,1,3); t.merge(); t.selectCell(2,1); t.deleteCols(); },
-				html: '<table><tbody><tr><td colspan="2">1,1</td></tr><tr><td>2,1</td><td>2,2</td></tr><tr><td>3,1</td><td>3,2</td></tr></tbody></table>',
+				html: '<table><tbody><tr><td colspan="2">1,1</td></tr><tr><td>2,2</td><td>2,3</td></tr><tr><td>3,2</td><td>3,3</td></tr></tbody></table>',
 			},
 			{
 				note: '移动列',
 				init: t => { t.reset(4,4); t.selectRange(2,2,2,3); t.merge(); t.selectRange(3,1,4,1); t.merge(); t.selectRange(3,3,4,3); t.merge(); t.clearSelection(); t.moveCols(2,3,1); },
-				html: '<table><tbody><tr><td>1,1</td><td>1,2</td><td>1,3</td><td>1,4</td></tr><tr><td colspan="2">2,1</td><td>2,3</td><td>2,4</td></tr><tr><td>3,1</td><td rowspan="2">3,2</td><td>3,3</td><td rowspan="2">3,4</td></tr><tr><td>4,1</td><td>4,3</td></tr></tbody></table>',
+				html: '<table><tbody><tr><td>1,2</td><td>1,3</td><td>1,4</td><td>1,1</td></tr><tr><td colspan="2">2,2</td><td>2,4</td><td>2,1</td></tr><tr><td>3,2</td><td rowspan="2">3,3</td><td>3,4</td><td rowspan="2">3,1</td></tr><tr><td>4,2</td><td>4,4</td></tr></tbody></table>',
 			},
 			{
 				note: '移动列：和首列交换',
 				init: t => { t.reset(1,4); t.moveCols(2,1,1); t.moveCols(3,1,2); },
-				html: '<table><tbody><tr><td>1,1</td><td>1,2</td><td>1,3</td><td>1,4</td></tr></tbody></table>',
+				html: '<table><tbody><tr><td>1,2</td><td>1,3</td><td>1,1</td><td>1,4</td></tr></tbody></table>',
 			},
 			{
 				note: '移动行',
 				init: t => { t.reset(4,3); t.selectRange(3,2,4,3); t.merge(); t.moveRows(3,2,2); },
-				html: '<table><tbody><tr><td>1,1</td><td>1,2</td><td>1,3</td></tr><tr><td>2,1</td><td rowspan="2" colspan="2" class="selected">2,2</td></tr><tr><td>3,1</td></tr><tr><td>4,1</td><td>4,2</td><td>4,3</td></tr></tbody></table>',
+				html: '<table><tbody><tr><td>1,1</td><td>1,2</td><td>1,3</td></tr><tr><td>3,1</td><td rowspan="2" colspan="2" class="selected">3,2</td></tr><tr><td>4,1</td></tr><tr><td>2,1</td><td>2,2</td><td>2,3</td></tr></tbody></table>',
 			},
 			{
 				note: '撤销：不双重保存，因为内部调用了 split（原本也会再自己 save 一次）',
@@ -1431,15 +1452,15 @@ class TableTest {
 		this.cases.forEach((t, index) => {
 			const table = new Table();
 			table._fixLineHeight = false;
+			table._resetWithCoords = true;
 			try {
 				t.init(table);
 			} finally {
 				table.remove();
 			}
-			table._calcCoords(true);
 			const html = table.getContent();
 			if(html != t.html) {
-				console.table({note: `测试错误：${t.note ?? ''}`, want: t.html, got: html});
+				console.table({note: `测试错误：${t.note ?? ''}`, init: t.init.toString(), want: t.html, got: html});
 				throw new Error(`测试错误: @${index}`);
 			}
 		});
@@ -1452,6 +1473,3 @@ try {
 } catch(e) {
 	console.error(e);
 }
-
-let t = new Table();
-t.reset(8,8);
