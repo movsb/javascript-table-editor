@@ -39,9 +39,7 @@ td.editing, th.editing {
 <body>
 <p>
 	<button type="button" onclick="t.reset()">Reset</button>
-</p>
-<p>
-	<label><input name="show_coords" type="checkbox" onclick="t._showCoords=this.checked" autocomplete="off">Show Coords</label>
+	<button type="button" onclick="t._calcCoords(true);t._save()">Show Coords</button>
 </p>
 <p>
 	<button type="button" onclick="t.addRowAbove()">Add Row Above</button>
@@ -66,6 +64,8 @@ td.editing, th.editing {
 <p>
 	<button type="button" onclick="t.toHeaderRows()">To Header Rows</button>
 	<button type="button" onclick="t.toHeaderCols()">To Header Cols</button>
+</p>
+<p>
 	<button type="button" onclick="t.toDataRows()">To Data Rows</button>
 	<button type="button" onclick="t.toDataCols()">To Data Cols</button>
 </p>

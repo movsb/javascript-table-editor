@@ -6,11 +6,15 @@ class Table {
 		/** @type {HTMLTableCellElement | null} */
 		this.curCell = null;
 
-		/** @type {HTMLTableCellElement[]} */
+		/**
+		 * 从左到右、从上到下。
+		 * 但是要注意：最后一个元素不一定在视觉上是最右下角的元素。
+		 * @type {HTMLTableCellElement[]}
+		 */
 		this.selectedCells = [];
 
-		/** @type {Boolean} 是否展示调试内容。 */
-		this._showCoords = false;
+		// /** @type {Boolean} 是否展示调试内容。 */
+		// this._showCoords = false;
 		/** @type {Boolean} 是否 fix empty line height */
 		this._fixLineHeight = true;
 
@@ -30,12 +34,11 @@ class Table {
 		 */
 		const _getCell = (element) => {
 			if(element instanceof HTMLDocument) return null;
-			for (; element ;) {
-				element = element.closest('td') || element.closest('th');
-				if(element && element.closest('table') == this.table) {
-					return element;
-				}
+			element = element.closest('td') || element.closest('th');
+			if(element && element.closest('table') == this.table) {
+				return element;
 			}
+			return null;
 		}
 
 		this.table.addEventListener('click', (e) => {
@@ -62,21 +65,127 @@ class Table {
 				if(!cell) { return; }
 
 				const startCell = cell;
+				const startCellSelected = this._isSelected(startCell);
 
-				const moveHandler = e => {
-					const cell = _getCell(e.target);
-					if(!cell) { return; }
-					// 防止在同一个元素内移动时因频繁 clearSelection 导致失去编辑焦点。
-					if (cell == startCell && this.selectedCells.length <= 1) {
-						return;
+				/**
+				 * lazy calculated
+				 * @type {{valid: boolean, r1: number, r2: number, c1: number, c2: number}}
+				 */
+				let selectionCoords = null;
+				/** @type {{valid: boolean, row: boolean, from: number, count: number, to: number}} */
+				let moveCoords = {};
+
+				/** @type {HTMLTableElement} */
+				let shadow = null;
+				let shadowShow = false;
+				let shadowX = e.offsetX, shadowY = e.offsetY;
+				let shadowClientX = e.clientX, shadowClientY = e.clientY;
+
+				/** @type {HTMLDivElement} */
+				let bar = null;
+				/**
+				 * @param {number}  pos         Bar X if vertical; Bar Y if Horizontal.
+				 * @param {boolean} horizontal  Bar layout
+				 */
+				let placeBar = (pos, horizontal) => {
+					if (!bar) {
+						bar = document.createElement('div');
+						bar.style.position = 'fixed';
+						bar.style.pointerEvents = 'none';
+						bar.style.backgroundColor = 'accentColor';
+						document.body.appendChild(bar);
 					}
-					this._selectRange(startCell, cell);
+
+					const rc = this.table.getBoundingClientRect();
+
+					if(horizontal) {
+						bar.style.left = `${rc.left}px`;
+						bar.style.top = `${pos-1}px`;
+						bar.style.height = '3px';
+						bar.style.width = `${rc.width}px`;
+					} else {
+						bar.style.left = `${pos-1}px`;
+						bar.style.top = `${rc.top}px`;
+						bar.style.width = '3px';
+						bar.style.height = `${rc.height}px`;
+					}
 				};
 
-				document.addEventListener('mousemove', moveHandler);
-				document.addEventListener('mouseup', ()=>{
-					document.removeEventListener('mousemove', moveHandler);
-				}, { once: true });
+				/**
+				 * @param {MouseEvent} e 
+				 */
+				const moveHandler = e => {
+					const cell = _getCell(e.target);
+
+					if(startCellSelected) {
+						if(!shadowShow) {
+							shadowShow = true;
+							shadow = this._createShadow();
+							shadow.style.opacity = 0.7;
+							shadow.style.position = 'fixed';
+							shadow.style.pointerEvents = 'none';
+							document.body.appendChild(shadow);
+
+							// lazy
+							selectionCoords = this._calculateSelectionCoords();
+						}
+
+						// 鼠标在表格内移动。
+						if (cell) {
+							// 判断是水平移动还是纵向移动。
+							const isHorizontal = Math.abs(e.clientX-shadowClientX) > Math.abs(e.clientY-shadowClientY);
+							const rc = cell.getBoundingClientRect();
+							const sc = selectionCoords;
+							const cc = this._getCoords(cell);
+
+							if (isHorizontal) {
+								const center = rc.width / 2;
+								const left = e.offsetX < center;
+								placeBar(left?rc.left:rc.right, false);
+								moveCoords = {row: false, from: sc.c1, count: sc.c2-sc.c1+1, to: left ? cc.c1 : cc.c2+1};
+								moveCoords.valid = sc.valid && this._canMoveCols(moveCoords.from, moveCoords.count, moveCoords.to);
+								this.table.style.cursor = moveCoords.valid ? 'col-resize' : 'not-allowed';
+							} else if(!isHorizontal) {
+								const middle = rc.height / 2;
+								const top = e.offsetY < middle;
+								placeBar(top?rc.top:rc.bottom, true);
+								moveCoords = {row: true, from: sc.r1, count: sc.r2-sc.r1+1, to: top ? cc.r1 : cc.r2+1};
+								moveCoords.valid = sc.valid && this._canMoveRows(moveCoords.from, moveCoords.count, moveCoords.to);
+								this.table.style.cursor = moveCoords.valid ? 'row-resize' : 'not-allowed';
+							}
+						}
+
+						// 即便不在表格内移动，也可以显示。
+						shadow.style.left = `${e.clientX - shadowX}px`;
+						shadow.style.top = `${e.clientY - shadowY}px`;
+					} else {
+						if(!cell) { return; }
+
+						// 防止在同一个元素内移动时因频繁 clearSelection 导致失去编辑焦点。
+						if (cell == startCell && this.selectedCells.length <= 1) {
+							return;
+						}
+						this._selectRange(startCell, cell);
+					}
+				};
+
+				if(!this._isEditing(startCell)) {
+					document.addEventListener('mousemove', moveHandler);
+					document.addEventListener('mouseup', ()=>{
+						document.removeEventListener('mousemove', moveHandler);
+						shadow && shadow.remove();
+						bar && bar.remove();
+						this.table.style.cursor = '';
+
+						if(moveCoords?.valid) {
+							if(moveCoords.row) {
+								this.moveRows(moveCoords.from, moveCoords.count, moveCoords.to);
+							} else {
+								this.moveCols(moveCoords.from, moveCoords.count, moveCoords.to);
+							}
+						}
+					}, { once: true });
+				}
 			});
 		} else {
 			// 不知道为什么必须定义在外面，否则一直是固定值。
@@ -117,6 +226,56 @@ class Table {
 				}, { once: true });
 			});
 		}
+	}
+
+	_calculateSelectionCoords() {
+		const selection = [...this.selectedCells];
+		if(this.curCell) selection.push(this.curCell);
+
+		let r1 = this.table.rows.length, c1 = this._maxCols(), r2 = 1, c2 = 1;
+		selection.forEach(cell => {
+			const cc = this._getCoords(cell);
+			r1 = Math.min(r1, cc.r1);
+			c1 = Math.min(c1, cc.c1);
+			r2 = Math.max(r2, cc.r2);
+			c2 = Math.max(c2, cc.c2);
+		});
+		for(let r=r1; r<=r2; r++) {
+			for(let c=c1; c<=c2; c++) {
+				const cell = this.findCell(r, c);
+				if(!this._isSelected(cell)) {
+					return {valid: false};
+				}
+			}
+		}
+		return {valid: true, r1, r2, c1, c2};
+	}
+
+	/**
+	 * 
+	 * @returns {HTMLTableElement}
+	 */
+	_createShadow() {
+		/** @type {NodeListOf<HTMLTableCellElement>} */
+		const selection = [...this.selectedCells];
+		this.curCell && selection.push(this.curCell);
+		if(selection.length <= 0) {
+			throw new Error('no selection');
+		}
+
+		// 为简单起见，基于最左上角的元素创建。
+		let topLeft = selection[0];
+		const cloned = topLeft.cloneNode(true);
+		// highlight 非本表，这样好吗？
+		this._highlight(cloned, true);
+		const table = document.createElement('table');
+		const tbody = document.createElement('tbody');
+		const tr    = document.createElement('tr');
+		tr.appendChild(cloned);
+		tbody.appendChild(tr);
+		table.appendChild(tbody);
+
+		return table;
 	}
 
 	undo() {
@@ -357,6 +516,15 @@ class Table {
 			cell.classList.remove('selected');
 			cell.className == "" && cell.removeAttribute('class');
 		}
+	}
+
+	/**
+	 * 
+	 * @param {HTMLTableCellElement} cell 
+	 * @returns {boolean}
+	 */
+	_isSelected(cell) {
+		return cell.classList.contains('selected');
 	}
 
 	/**
@@ -883,42 +1051,19 @@ class Table {
 	 * TODO 还应该允许类似上面占两列，下面各自一列的情况。保持上面不动，下面交换。
 	 * @param {number} from     源列号（从 1 开始）。
 	 * @param {number} count    列数。
-	 * @param {number} to       目的列号。
+	 * @param {number} to       目的列号。原来处于 to 位置的向右挤。
 	 */
 	moveCols(from, count, to) {
-		const c1 = from, c2 = from + count - 1;
-		const maxCols = this._maxCols();
-		if(
-			(c1 < 1 || c2 > maxCols || c1 > c2)     // 源列号无效
-			|| (to < 1 || to > maxCols + 1)         // 目标列号无效
-			|| (c1 <= to && to <= c2)               // 有重合
-		) {
-			return false;
+		if(!this._canMoveCols(from, count, to)) {
+			throw new Error('cannot move cols');
 		}
 
-		// 判断选择列的数据没有跨越到其它列。
+		const c1 = from, c2 = from + count - 1;
 		const rows = this.table.rows.length;
-		for(let c = c1; c <= c2; c++) {
-			for(let r = 1; r <= rows;) {
-				const cell = this.findCell(r, c);
-				const cc = this._getCoords(cell);
-				// 列来自左边，或者跨越到了右边。
-				if(cc.c1 < c1 || cc.c2 > c2) {
-					return false;
-				}
-				r += cell.rowSpan;
-			}
-		}
-		// 且目标列只有一列或者不处在里面。
-		for(let r = 1; r <= rows; r++) {
-			const cell = this.findCell(r, to);
-			const cc = this._getCoords(cell);
-			if(cell.colSpan > 1 && to != cc.c1) {
-				return false;
-			}
-		}
+		const maxCols = this._maxCols();
 
 		/**
+		 * 查找 to 左边的元素。
 		 * @param {number} r 
 		 * @param {number} to 
 		 * @returns {HTMLTableCellElement}
@@ -926,13 +1071,15 @@ class Table {
 		const findLeft = (r, to) => {
 			for (; to >= 1; ) {
 				if(to == 1) { return null; }
-				const cell = this.findCell(r, to);
+				if(to == maxCols+1) { return this.table.rows[r-1].lastElementChild; }
+				const cell = this.findCell(r, to-1);
 				const cc = this._getCoords(cell);
-				if(cc.c1 == to && cc.r1 == r) {
+				if(cc.c1 == to-1 && cc.r1 == r) {
 					return cell;
 				}
 				to--;
 			}
+			throw new Error('bad to for col');
 		};
 		const rowsToMove = [];
 		for(let r = 1; r <= rows; r++) {
@@ -966,43 +1113,63 @@ class Table {
 	}
 
 	/**
-	 * 移动指定位置的行到指定位置。
-	 * @param {number} from     源行号（从 1 开始）
-	 * @param {number} count    行数
-	 * @param {number} to       目的行号
+	 * @param {number} from     
+	 * @param {number} count    
+	 * @param {number} to       
 	 */
-	moveRows(from, count, to) {
-		const r1 = from, r2 = from + count - 1;
-		const maxRows = this.table.rows.length;
+	_canMoveCols(from, count, to) {
+		const c1 = from, c2 = from + count - 1;
 		const maxCols = this._maxCols();
-		
 		if(
-			(r1 < 1 || r2 > maxRows || r1 > r2)     // 源行号无效
-			|| (to < 1 || to > maxRows + 1)         // 目标行号无效
-			|| (r1 <= to && to <= r2)               // 有重合
+			(c1 < 1 || c2 > maxCols || c1 > c2)     // 源列号无效
+			|| (to < 1 || to > maxCols + 1)         // 目标列号无效
+			|| (c1 <= to && to <= c2)               // 有重合
+			|| (c2+1 == to)                         // 原地
 		) {
 			return false;
 		}
 
-		// 判断选择行的数据没有跨越到其它行。
-		for(let r=r1; r<=r2; r++) {
-			for(let c=1; c<=maxCols; c++) {
+		// 判断选择列的数据没有跨越到其它列。
+		const rows = this.table.rows.length;
+		for(let c = c1; c <= c2; c++) {
+			for(let r = 1; r <= rows;) {
 				const cell = this.findCell(r, c);
 				const cc = this._getCoords(cell);
-				// 行来自上面，或者跨越到了下面。
-				if(cc.r1 < r1 || cc.r2 > r2) {
+				// 列来自左边，或者跨越到了右边。
+				if(cc.c1 < c1 || cc.c2 > c2) {
+					return false;
+				}
+				r += cell.rowSpan;
+			}
+		}
+
+		if(to != maxCols+1) {
+			// 且目标列只有一列或者不处在里面。
+			for(let r = 1; r <= rows; r++) {
+				const cell = this.findCell(r, to);
+				const cc = this._getCoords(cell);
+				if(cell.colSpan > 1 && to != cc.c1) {
 					return false;
 				}
 			}
 		}
-		// 目标行只有一行且不处在里面。
-		for(let c=1; c<= maxCols; c++) {
-			const cell = this.findCell(to, c);
-			const cc = this._getCoords(cell);
-			if(cell.rowSpan > 1 && to != cc.r1) {
-				return false;
-			}
+
+		return true;
+	}
+
+	/**
+	 * 移动指定位置的行到指定位置。
+	 * @param {number} from     源行号（从 1 开始）
+	 * @param {number} count    行数
+	 * @param {number} to       目的行号。原来处于 to 位置的向下挤。
+	 */
+	moveRows(from, count, to) {
+		if (!this._canMoveRows(from, count, to)) {
+			throw new Error('cannot move rows');
 		}
+
+		const r1 = from, r2 = from + count - 1;
+		const maxRows = this.table.rows.length;
 
 		const rowsToMove = Array.from(this.table.rows).slice(r1-1, r2+1-1);
 		if(to == maxRows+1) {
@@ -1019,6 +1186,51 @@ class Table {
 		return true;
 	}
 
+	/**
+	 * @param {number} from     
+	 * @param {number} count    
+	 * @param {number} to       
+	 */
+	_canMoveRows(from, count, to) {
+		const r1 = from, r2 = from + count - 1;
+		const maxRows = this.table.rows.length;
+		const maxCols = this._maxCols();
+		
+		if(
+			(r1 < 1 || r2 > maxRows || r1 > r2)     // 源行号无效
+			|| (to < 1 || to > maxRows + 1)         // 目标行号无效
+			|| (r1 <= to && to <= r2)               // 有重合
+			|| (r2+1 == to)                         // 原地
+		) {
+			return false;
+		}
+
+		// 判断选择行的数据没有跨越到其它行。
+		for(let r=r1; r<=r2; r++) {
+			for(let c=1; c<=maxCols; c++) {
+				const cell = this.findCell(r, c);
+				const cc = this._getCoords(cell);
+				// 行来自上面，或者跨越到了下面。
+				if(cc.r1 < r1 || cc.r2 > r2) {
+					return false;
+				}
+			}
+		}
+
+		if(to != maxRows+1) {
+			// 目标行只有一行且不处在里面。
+			for(let c=1; c<= maxCols; c++) {
+				const cell = this.findCell(to, c);
+				const cc = this._getCoords(cell);
+				if(cell.rowSpan > 1 && to != cc.r1) {
+					return false;
+				}
+			}
+		}
+
+		return true;
+	}
+
 	// TODO 由于列数总是一致的，所以取第一行的最后一列即可，无需判断所有行。
 	_maxCols() {
 		let maxCol = 0;
@@ -1031,10 +1243,7 @@ class Table {
 		return maxCol;
 	}
 
-	_calcCoords() {
-		return this._calcCoordsDebug(this._showCoords);
-	}
-	_calcCoordsDebug(debug) {
+	_calcCoords(debug = false) {
 		// debugger;
 		let calcC1 = (rowIndex, colIndex) => {
 			let retry = (tr, tc) => {
@@ -1196,6 +1405,11 @@ class TableTest {
 				html: '<table><tbody><tr><td>1,1</td><td>1,2</td><td>1,3</td><td>1,4</td></tr><tr><td colspan="2">2,1</td><td>2,3</td><td>2,4</td></tr><tr><td>3,1</td><td rowspan="2">3,2</td><td>3,3</td><td rowspan="2">3,4</td></tr><tr><td>4,1</td><td>4,3</td></tr></tbody></table>',
 			},
 			{
+				note: '移动列：和首列交换',
+				init: t => { t.reset(1,4); t.moveCols(2,1,1); t.moveCols(3,1,2); },
+				html: '<table><tbody><tr><td>1,1</td><td>1,2</td><td>1,3</td><td>1,4</td></tr></tbody></table>',
+			},
+			{
 				note: '移动行',
 				init: t => { t.reset(4,3); t.selectRange(3,2,4,3); t.merge(); t.moveRows(3,2,2); },
 				html: '<table><tbody><tr><td>1,1</td><td>1,2</td><td>1,3</td></tr><tr><td>2,1</td><td rowspan="2" colspan="2" class="selected">2,2</td></tr><tr><td>3,1</td></tr><tr><td>4,1</td><td>4,2</td><td>4,3</td></tr></tbody></table>',
@@ -1216,13 +1430,13 @@ class TableTest {
 	run() {
 		this.cases.forEach((t, index) => {
 			const table = new Table();
-			table._showCoords = true;
 			table._fixLineHeight = false;
 			try {
 				t.init(table);
 			} finally {
 				table.remove();
 			}
+			table._calcCoords(true);
 			const html = table.getContent();
 			if(html != t.html) {
 				console.table({note: `测试错误：${t.note ?? ''}`, want: t.html, got: html});
@@ -1240,5 +1454,4 @@ try {
 }
 
 let t = new Table();
-t._showCoords = true;
 t.reset(8,8);
