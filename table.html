@@ -79,9 +79,13 @@ function reset() {
 	/** @type {HTMLInputElement} */
 	let input = document.querySelector('input[name=size]');
 	let d = input.value.split(',').map(s => parseInt(s));
+	const r=d[0],c=d[1];
+	if(r < 1 || c < 1 || r > 100 || c > 100) {
+		alert('table too small or too big');
+		return;
+	}
 	t._resetWithCoords = true;
-	t.reset(d[0],d[1]);
-	t._save();
+	t.reset(r, c);
 }
 
 reset();
