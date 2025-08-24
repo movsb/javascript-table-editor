@@ -7,7 +7,6 @@ class Table {
 		this.curCell = null;
 
 		/** @type {HTMLTableCellElement[]} */
-		// 始终为从左上到右下的顺序。
 		this.selectedCells = [];
 
 		/** @type {Boolean} 是否展示调试内容。 */
@@ -192,8 +191,11 @@ class Table {
 		this.table.remove();
 	}
 
-	/** @returns {string} */
-	get content() {
+	/**
+	 * 获取表格数据作为 HTML 数据保存。
+	 * @returns {string}
+	 */
+	getContent() {
 		return this.table.outerHTML;
 	}
 
@@ -420,24 +422,59 @@ class Table {
 		return ret;
 	}
 
-	toHeaderCells() { return this._toCells('TD', 'TH'); }
-	toDataCells()   { return this._toCells('TH', 'TD'); }
+	toHeaderRows() { return this._toCells(true,  'TD', 'TH'); }
+	toHeaderCols() { return this._toCells(false, 'TD', 'TH'); }
+	toDataRows()   { return this._toCells(true,  'TH', 'TD'); }
+	toDataCols()   { return this._toCells(false, 'TH', 'TD'); }
 
-	/** @param {string} type */
-	// TH / TD
-	_toCells(from, to) {
-		const cells = [this.curCell, ...this.selectedCells];
-		cells.forEach(cell => {
-			if(cell?.tagName == from) {
-				/** @type {HTMLTableCellElement} */
-				const replaced = document.createElement(to);
-				replaced.innerHTML = cell.innerHTML;
-				if (cell.rowSpan > 1) replaced.rowSpan = cell.rowSpan;
-				if (cell.colSpan > 1) replaced.colSpan = cell.colSpan;
-				this._setCoords(replaced, this._getCoords(cell));
-				cell.replaceWith(replaced);
+	_toCells(byRow, from, to) {
+		const selected = [...this.selectedCells];
+		if(this.curCell) selected.push(this.curCell);
+		if (selected.length <= 0) {
+			alert('Please select at least one cell.');
+			return false;
+		}
+
+		// 扩展选区到包含完整的行/列。
+		const maxCols = this._maxCols(), maxRows = this.table.rows.length;
+		let r1,r2,c1,c2;
+		if(byRow) {
+			c1 = 1; c2 = maxCols;
+			r1 = maxRows; r2 = 1;
+			selected.forEach(cell => {
+				const cc = this._getCoords(cell);
+				r1 = Math.min(r1, cc.r1);
+				r2 = Math.max(r2, cc.r2);
+			});
+		} else {
+			r1 = 1; r2 = maxRows;
+			c1 = maxCols; c2 = 1;
+			selected.forEach(cell => {
+				const cc = this._getCoords(cell);
+				c1 = Math.min(c1, cc.c1);
+				c2 = Math.max(c2, cc.c2);
+			});
+		}
+
+		const clone = (cell, tag) => {
+			/** @type {HTMLTableCellElement} */
+			const replaced = document.createElement(tag);
+			replaced.innerHTML = cell.innerHTML;
+			if (cell.rowSpan > 1) replaced.rowSpan = cell.rowSpan;
+			if (cell.colSpan > 1) replaced.colSpan = cell.colSpan;
+			this._setCoords(replaced, this._getCoords(cell));
+			return replaced;
+		}
+
+		for(let r=r1; r<=r2; r++) {
+			for(let c=c1; c<=c2; c++) {
+				const cell = this.findCell(r, c);
+				if(cell.tagName == from) {
+					cell.replaceWith(clone(cell, to));
+				}
 			}
-		});
+		}
+
 		this.clearSelection();
 		this._save();
 	}
@@ -1154,11 +1191,6 @@ class TableTest {
 				html: '<table><tbody><tr><td colspan="2">1,1</td></tr><tr><td>2,1</td><td>2,2</td></tr><tr><td>3,1</td><td>3,2</td></tr></tbody></table>',
 			},
 			{
-				note: '切换表头',
-				init: t => { t.reset(3,3); t.selectRange(1,1,1,3); t.toHeaderCells(); t.selectRange(1,1,3,1); t.toHeaderCells(); },
-				html: '<table><tbody><tr><th>1,1</th><th>1,2</th><th>1,3</th></tr><tr><th>2,1</th><td>2,2</td><td>2,3</td></tr><tr><th>3,1</th><td>3,2</td><td>3,3</td></tr></tbody></table>',
-			},
-			{
 				note: '移动列',
 				init: t => { t.reset(4,4); t.selectRange(2,2,2,3); t.merge(); t.selectRange(3,1,4,1); t.merge(); t.selectRange(3,3,4,3); t.merge(); t.clearSelection(); t.moveCols(2,3,1); },
 				html: '<table><tbody><tr><td>1,1</td><td>1,2</td><td>1,3</td><td>1,4</td></tr><tr><td colspan="2">2,1</td><td>2,3</td><td>2,4</td></tr><tr><td>3,1</td><td rowspan="2">3,2</td><td>3,3</td><td rowspan="2">3,4</td></tr><tr><td>4,1</td><td>4,3</td></tr></tbody></table>',
@@ -1173,6 +1205,11 @@ class TableTest {
 				init: t => { t.reset(3,3); t.selectRange(1,3,3,3); t.merge(); t.selectCell(1,1); t.deleteRows(); t.undo(); },
 				html: '<table><tbody><tr><td>1,1</td><td>1,2</td><td rowspan="3">1,3</td></tr><tr><td>2,1</td><td>2,2</td></tr><tr><td>3,1</td><td>3,2</td></tr></tbody></table>',
 			},
+			{
+				note: '切换表头',
+				init: t => { t.reset(4,4); t.selectRange(1,4,2,4); t.merge(); t.toHeaderRows(); t.selectRange(4,1,4,2); t.merge(); t.toHeaderCols(); },
+				html: '<table><tbody><tr><th>1,1</th><th>1,2</th><th>1,3</th><th rowspan="2">1,4</th></tr><tr><th>2,1</th><th>2,2</th><th>2,3</th></tr><tr><th>3,1</th><th>3,2</th><td>3,3</td><td>3,4</td></tr><tr><th colspan="2">4,1</th><td>4,3</td><td>4,4</td></tr></tbody></table>',
+			},
 		];
 	}
 
@@ -1186,7 +1223,7 @@ class TableTest {
 			} finally {
 				table.remove();
 			}
-			const html = table.content;
+			const html = table.getContent();
 			if(html != t.html) {
 				console.table({note: `测试错误：${t.note ?? ''}`, want: t.html, got: html});
 				throw new Error(`测试错误: @${index}`);
