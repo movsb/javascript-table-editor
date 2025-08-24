@@ -312,26 +312,33 @@ class Table {
 	}
 
 	/**
-	 * 
-	 * @param {Number} rows 
-	 * @param {Number} cols 
+	 * 将表格重置为指定的大小。
+	 * @param {number} rows 行数
+	 * @param {number} cols 列数
+	 * @param {{
+	 *      headerRows?: number,    // 小于等于 number 的所有行被作为表头（从 1 开始）。
+	 *      headerCols?: number,    // 小于等于 number 的所有列被作为表头（从 1 开始）。
+	 *      showCoords?: boolean,   // 调试用：是否显示逻辑坐标。
+	 * }} options 
 	 */
-	reset(rows, cols) {
-		if(!rows && !cols) {
-			rows = this._rows;
-			cols = this._cols;
-		} else {
-			this._rows = rows;
-			this._cols = cols;
-		}
-
+	reset(rows, cols, options) {
 		this.clearSelection();
 		this.table.innerHTML = '';
 
-		for(let i=0; i<rows; i++) {
+		options = options ?? {};
+
+		for(let r=0; r<rows; r++) {
 			const tr = this.table.insertRow();
-			for(let j=0; j<cols; j++) {
-				const td = tr.insertCell();
+			const hr = r+1 <= (options.headerRows ?? 0);
+			for(let c=0; c<cols; c++) {
+				const hc = c+1 <= (options.headerCols ?? 0);
+				const header = hr || hc;
+				if(header) {
+					const th = document.createElement('th');
+					tr.appendChild(th);
+				} else {
+					const td = tr.insertCell();
+				}
 			}
 			if(this._fixLineHeight) {
 				// 任何列都可以。只是 firefox 上此单元格双击时不显示光标。

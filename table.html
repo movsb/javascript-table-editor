@@ -85,7 +85,10 @@ function reset() {
 		return;
 	}
 	t._resetWithCoords = true;
-	t.reset(r, c);
+	t.reset(r, c, {
+		headerRows: 1,
+		showCoords: true,
+	});
 }
 
 reset();
