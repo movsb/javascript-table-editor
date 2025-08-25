@@ -546,7 +546,9 @@ class Table {
 
 			if(this._fixLineHeight) {
 				if(cell._fixing) {
-					cell.textContent = '';
+					if(cell.innerHTML == '\u200b') {
+						cell.textContent = '';
+					}
 					cell._fixing = false;
 				}
 			}
