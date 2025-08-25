@@ -359,6 +359,9 @@ class Table {
 	/**
 	 * 获取表格数据作为 HTML 数据保存。
 	 * @returns {string}
+	 * @todo 应该做一些清理工作：
+	 *   1. 清理选区
+	 *   2. 清理编辑状态
 	 */
 	getContent() {
 		return this.table.outerHTML;
@@ -1074,7 +1077,6 @@ class Table {
 
 	/**
 	 * 移动指定位置的列到指定位置。
-	 * TODO 还应该允许类似上面占两列，下面各自一列的情况。保持上面不动，下面交换。
 	 * @param {number} from     源列号（从 1 开始）。
 	 * @param {number} count    列数。
 	 * @param {number} to       目的列号。原来处于 to 位置的向右挤。
@@ -1092,7 +1094,7 @@ class Table {
 		 * 查找 to 左边的元素。
 		 * @param {number} r 
 		 * @param {number} to 
-		 * @returns {HTMLTableCellElement}
+		 * @returns {HTMLTableCellElement | null}
 		 */
 		const findLeft = (r, to) => {
 			for (; to >= 1; ) {
@@ -1109,17 +1111,27 @@ class Table {
 		};
 		const rowsToMove = [];
 		for(let r = 1; r <= rows; r++) {
-			const left = findLeft(r, to);
 			let cellsToMove = [];
+			let noMove = false;
 			for(let c = c1; c <= c2; c++) {
 				const cell = this.findCell(r, c);
 				const cc = this._getCoords(cell);
 				// 左上角单元格/独立单元格。
 				if(cc.c1 == c && cc.r1 == r) {
+					// 如果 to 在此范围内说明此列需保持不动。
+					if (to >= cc.c1 && to <= cc.c2+1) {
+						noMove = true;
+						break;
+					}
 					cellsToMove.push(cell);
 				}
 			}
-			rowsToMove.push({left, cellsToMove});
+			if(noMove) {
+				rowsToMove.push({cellsToMove});
+			} else {
+				const left = findLeft(r, to);
+				rowsToMove.push({left, cellsToMove});
+			}
 		}
 		for(let r = 1; r <= rows; r++) {
 			const row = this.table.rows[r - 1];
@@ -1163,7 +1175,10 @@ class Table {
 				const cc = this._getCoords(cell);
 				// 列来自左边，或者跨越到了右边。
 				if(cc.c1 < c1 || cc.c2 > c2) {
-					return false;
+					// 此种情况属于有不动列的情况，to 必须在该列内包含。
+					if(to < cc.c1 || to > cc.c2+1) {
+						return false;
+					}
 				}
 				r += cell.rowSpan;
 			}
@@ -1174,7 +1189,8 @@ class Table {
 			for(let r = 1; r <= rows; r++) {
 				const cell = this.findCell(r, to);
 				const cc = this._getCoords(cell);
-				if(cell.colSpan > 1 && to != cc.c1) {
+				// 如果有横跨列，那么目标列必须包含在内。
+				if(cell.colSpan > 1 && !(to >= cc.c1 && to <= cc.c2+1)) {
 					return false;
 				}
 			}
@@ -1438,6 +1454,11 @@ class TableTest {
 				note: '移动列：和首列交换',
 				init: t => { t.reset(1,4); t.moveCols(2,1,1); t.moveCols(3,1,2); },
 				html: '<table><tbody><tr><td>1,2</td><td>1,3</td><td>1,1</td><td>1,4</td></tr></tbody></table>',
+			},
+			{
+				note: '移动列：固定表头',
+				init: t => { t.reset(3,3); t.selectRange(1,2,1,3); t.merge(); t.moveCols(2,1,4); },
+				html:  '<table><tbody><tr><td>1,1</td><td colspan="2" class="selected">1,2</td></tr><tr><td>2,1</td><td>2,3</td><td>2,2</td></tr><tr><td>3,1</td><td>3,3</td><td>3,2</td></tr></tbody></table>',
 			},
 			{
 				note: '移动行',
