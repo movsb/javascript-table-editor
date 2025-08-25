@@ -1184,14 +1184,22 @@ class Table {
 			}
 		}
 
+		// 判断目标列。
 		if(to != maxCols+1) {
 			// 且目标列只有一列或者不处在里面。
 			for(let r = 1; r <= rows; r++) {
 				const cell = this.findCell(r, to);
 				const cc = this._getCoords(cell);
-				// 如果有横跨列，那么目标列必须包含在内。
-				if(cell.colSpan > 1 && !(to >= cc.c1 && to <= cc.c2+1)) {
-					return false;
+				// 如果有横跨列，
+				if(cell.colSpan > 1) {
+					// 如果源列在内，那么目标列也必须包含在内。
+					// 如果源列不在内，那么目标列也不应该包含在内。
+					const fromWithin = c1 >= cc.c1 && c2 <= cc.c2;
+					const toValid1 =  fromWithin && (to >= cc.c1 && to <= cc.c2+1);
+					const toValid2 = !fromWithin && (to <= cc.c1 || to >= cc.c2+1);
+					if(!toValid1 && !toValid2) {
+						return false;
+					}
 				}
 			}
 		}
@@ -1340,7 +1348,7 @@ class Table {
 class TableTest {
 	constructor() {
 		/**
-		 * @type {{ note: string, init: (t: Table) => void, html: string }[]}
+		 * @type {{ note: string, init: (t: Table) => void, html: string, error: string }[]}
 		 */
 		this.cases = [
 			{
@@ -1461,6 +1469,16 @@ class TableTest {
 				html:  '<table><tbody><tr><td>1,1</td><td colspan="2" class="selected">1,2</td></tr><tr><td>2,1</td><td>2,3</td><td>2,2</td></tr><tr><td>3,1</td><td>3,3</td><td>3,2</td></tr></tbody></table>',
 			},
 			{
+				note: '移动列：从合并列外尝试移入',
+				init: t => { t.reset(2,3); t.selectRange(1,2,1,3); t.merge(); t.moveCols(1,1,3); },
+				error:  'Error: cannot move cols',
+			},
+			{
+				note: '移动列：从非合并列外尝试移入到合并列前',
+				init: t => { t.reset(2,3); t.selectRange(1,1,1,2); t.merge(); t.moveCols(3,1,1); },
+				html: '<table><tbody><tr><td>1,3</td><td colspan="2" class="selected">1,1</td></tr><tr><td>2,3</td><td>2,1</td><td>2,2</td></tr></tbody></table>',
+			},
+			{
 				note: '移动行',
 				init: t => { t.reset(4,3); t.selectRange(3,2,4,3); t.merge(); t.moveRows(3,2,2); },
 				html: '<table><tbody><tr><td>1,1</td><td>1,2</td><td>1,3</td></tr><tr><td>3,1</td><td rowspan="2" colspan="2" class="selected">3,2</td></tr><tr><td>4,1</td></tr><tr><td>2,1</td><td>2,2</td><td>2,3</td></tr></tbody></table>',
@@ -1484,7 +1502,14 @@ class TableTest {
 			table._fixLineHeight = false;
 			table._resetWithCoords = true;
 			try {
-				t.init(table);
+				try {
+					t.init(table);
+				} catch(e) {
+					if(t.error == `${e}`) {
+						return;
+					}
+					throw e;
+				}
 			} finally {
 				table.remove();
 			}
