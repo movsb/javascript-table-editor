@@ -1223,8 +1223,10 @@ class Table {
 
 		const rowsToMove = Array.from(this.table.rows).slice(r1-1, r2+1-1);
 		if(to == maxRows+1) {
-			const last = this.table.rows[maxRows-1];
-			rowsToMove.forEach(r => last.insertAdjacentElement('afterend', r));
+			rowsToMove.forEach(r => {
+				const last = this.table.rows[maxRows-1];
+				last.insertAdjacentElement('afterend', r);
+			});
 		} else {
 			const row = this.table.rows[to - 1];
 			rowsToMove.forEach(r => row.insertAdjacentElement('beforebegin', r));
@@ -1482,6 +1484,11 @@ class TableTest {
 				note: '移动行',
 				init: t => { t.reset(4,3); t.selectRange(3,2,4,3); t.merge(); t.moveRows(3,2,2); },
 				html: '<table><tbody><tr><td>1,1</td><td>1,2</td><td>1,3</td></tr><tr><td>3,1</td><td rowspan="2" colspan="2" class="selected">3,2</td></tr><tr><td>4,1</td></tr><tr><td>2,1</td><td>2,2</td><td>2,3</td></tr></tbody></table>',
+			},
+			{
+				note: '移动行：包含多行',
+				init: t => { t.reset(3,2); t.selectRange(1,1,2,1); t.merge(); t.moveRows(1,2,4); },
+				html: '<table><tbody><tr><td>3,1</td><td>3,2</td></tr><tr><td rowspan="2" class="selected">1,1</td><td>1,2</td></tr><tr><td>2,2</td></tr></tbody></table>',
 			},
 			{
 				note: '撤销：不双重保存，因为内部调用了 split（原本也会再自己 save 一次）',
