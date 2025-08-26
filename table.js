@@ -59,6 +59,14 @@ class Table {
 			this._edit(cell, true);
 		});
 
+		this.table.addEventListener('keydown', e => {
+			if(e.key == 'Tab' && this.curCell && this._isEditing(this.curCell)) {
+				if(this._navigate(!e.shiftKey)) {
+					e.preventDefault();
+				}
+			}
+		});
+
 		if (!('ontouchstart' in window)) {
 			this.table.addEventListener('mousedown', e => {
 				const cell = _getCell(e.target);
@@ -225,6 +233,39 @@ class Table {
 					document.removeEventListener('touchmove', moveHandler);
 				}, { once: true });
 			});
+		}
+	}
+
+	/**
+	 * 导航到下一个、上一个单元格进行编辑。
+	 * @param {boolean} next 
+	 * @returns {boolean} 是否成功导航到下一个/上一个。
+	 */
+	_navigate(next) {
+		const cc = this._getCoords(this.curCell);
+		const maxCols = this._maxCols();
+		let r = cc.r1, c = next ? cc.c2 + 1 : cc.c1 - 1;
+		while(true) {
+			if(c > maxCols) {
+				r++;
+				c = 1;
+			} else if(c < 1) {
+				r--;
+				c = maxCols;
+			}
+			if(r > this.table.rows.length || r < 1) {
+				this.clearSelection();
+				return false;
+			}
+			const cell = this.findCell(r, c)
+			const cc = this._getCoords(cell);
+			if (cc.r1 !=  r) {
+				c += next ? +1 : -1;
+				continue;
+			}
+			this._selectCell(cell, true);
+			this._edit(cell, true);
+			return true;
 		}
 	}
 
