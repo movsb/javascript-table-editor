@@ -1,7 +1,20 @@
 class Table {
-	constructor() {
+	/**
+	 * 
+	 * @param {string | HTMLElement | undefined} placeholder 
+	 */
+	constructor(placeholder) {
+		/** @type {HTMLElement} */
+		let elem = typeof placeholder == 'string'
+			? document.querySelector(placeholder)
+			: placeholder;
+		if(!elem) {
+			elem = document.createElement('div');
+			document.body.appendChild(elem);
+		}
+
 		this.table = document.createElement('table');
-		document.body.appendChild(this.table);
+		elem.replaceWith(this.table);
 
 		/** @type {HTMLTableCellElement | null} */
 		this.curCell = null;

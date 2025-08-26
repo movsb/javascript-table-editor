@@ -77,8 +77,9 @@ td.editing, th.editing {
 <p>Select & Drag then Drop to Re-Order Rows/Cols.</p>
 <p>Double-click to Edit.</p>
 <script src="table.js"></script>
+<div id="table"></div>
 <script>
-let t = new Table();
+let t = new Table('#table');
 
 function reset() {
 	/** @type {HTMLInputElement} */
