@@ -348,7 +348,7 @@ class Table {
 			}
 		}
 
-		this._calcCoords(this._resetWithCoords);
+		this._calcCoords(options.showCoords || this._resetWithCoords);
 		this._save();
 	}
 
@@ -1208,7 +1208,7 @@ class Table {
 	}
 
 	/**
-	 * 移动指定位置的行到指定位置。
+	 * 移动 {from,count} 位置的行到 {to} 位置。
 	 * @param {number} from     源行号（从 1 开始）
 	 * @param {number} count    行数
 	 * @param {number} to       目的行号。原来处于 to 位置的向下挤。
@@ -1220,6 +1220,82 @@ class Table {
 
 		const r1 = from, r2 = from + count - 1;
 		const maxRows = this.table.rows.length;
+		const maxCols = this._maxCols();
+
+		// 找出所有包含了源行、目标行、且跨行的单元格。
+		// 如果移动行，且包含了它们首行，则需要调整跨行单元格的位置。
+		/** @type {NodeListOf<HTMLTableCellElement>} */
+		const edgeCells = [];
+		for(let r=r1; r<=r2; r++) {
+			for(let c=1; c<=maxCols; c++) {
+				const cell = this.findCell(r, c);
+				const cc = this._getCoords(cell);
+				// 移动的行是首行，或者是目标行，则都需要调整位置。
+				if (cell.rowSpan > 1 && ((cc.r1 == r && cc.r1 == r1) || cc.r1 == to) && (to >= cc.r1 && to <= cc.r2+1)) {
+					edgeCells.push(cell);
+				}
+			}
+		}
+		if(edgeCells.length > 0) {
+			/**
+			 * 查找 to 左边的元素。
+			 * @param {number} r 
+			 * @param {number} c
+			 * @returns {HTMLTableCellElement | null}
+			 */
+			const findLeft = (r1, r, c) => {
+				for(let x=c; x>=1; x--) {
+					if(x == 1) {
+						return null;
+					}
+					const left = this.findCell(r, x-1);
+					if(left.rowSpan == 1) {
+						return left;
+					}
+					// 如果左边的这个元素跟自己同行，则说明也要被移动。
+					const cc = this._getCoords(left);
+					if (cc.r1 == r1) {
+						return left;
+					}
+				}
+			};
+
+			// 如果是首行下移，跨行的被移动到下一行；
+			// 如果是首行成为目标行，跨行的移动到目标行。
+			let newFirstRow = to > r2 ? r2+1 : r1;
+
+			// 找到跨行单元格在新的行的真实位置。
+			// 通过寻找在原来行的位置来确定。
+			/**
+			 * @typedef {Object} OldPos
+			 * @property {HTMLTableCellElement} cell
+			 * @property {HTMLTableCellElement} left
+			 */
+			/** @type {OldPos[]} */
+			const oldPos = [];
+			edgeCells.forEach(cell => {
+				const cc = this._getCoords(cell);
+				const left = findLeft(r1, newFirstRow, cc.c1);
+				oldPos.push({cell, left});
+			});
+
+			// 把需要移动的单元格移动到新的行里面去。
+			const toRow = this.table.rows[newFirstRow-1];
+			/** @type {HTMLTableCellElement} */
+			let left = null;
+			oldPos.forEach(data => {
+				if(!data.left) {
+					if(!left) {
+						toRow.insertAdjacentElement('afterbegin', data.cell);
+						left = data.cell;
+					} else {
+						left.insertAdjacentElement('afterend', data.cell);
+					}
+				} else {
+					data.left.insertAdjacentElement('afterend', data.cell);
+				}
+			});
+		}
 
 		const rowsToMove = Array.from(this.table.rows).slice(r1-1, r2+1-1);
 		if(to == maxRows+1) {
@@ -1264,18 +1340,30 @@ class Table {
 				const cc = this._getCoords(cell);
 				// 行来自上面，或者跨越到了下面。
 				if(cc.r1 < r1 || cc.r2 > r2) {
-					return false;
+					// 此种情况属于有不动行的情况，to 必须在该行内包含。
+					if(to < cc.r1 || to > cc.r2+1) {
+						return false;
+					}
 				}
 			}
 		}
 
+		// 判断目标行。
+		// 目标行只有一行或者不处在里面。
 		if(to != maxRows+1) {
-			// 目标行只有一行且不处在里面。
 			for(let c=1; c<= maxCols; c++) {
 				const cell = this.findCell(to, c);
 				const cc = this._getCoords(cell);
-				if(cell.rowSpan > 1 && to != cc.r1) {
-					return false;
+				// 如果有纵跨行...
+				if(cell.rowSpan > 1) {
+					// 如果源行在内，那么目标行也必须包含在内。
+					// 如果源行不在内，那么目标行也不应该包含在内。
+					const fromWithin = r1 >= cc.r1 && r2 <= cc.r2;
+					const toValid1 =  fromWithin && (to >= cc.r1 && to <= cc.r2+1);
+					const toValid2 = !fromWithin && (to <= cc.r1 || to >= cc.r2+1);
+					if(!toValid1 && !toValid2) {
+						return false;
+					}
 				}
 			}
 		}
@@ -1489,6 +1577,36 @@ class TableTest {
 				note: '移动行：包含多行',
 				init: t => { t.reset(3,2); t.selectRange(1,1,2,1); t.merge(); t.moveRows(1,2,4); },
 				html: '<table><tbody><tr><td>3,1</td><td>3,2</td></tr><tr><td rowspan="2" class="selected">1,1</td><td>1,2</td></tr><tr><td>2,2</td></tr></tbody></table>',
+			},
+			{
+				note: '移动行：包含多行，同时两行',
+				init: t => { t.reset(3,2); t.selectRange(1,1,3,1); t.merge(); t.moveRows(1,2,4); },
+				html: '<table><tbody><tr><td rowspan="3" class="selected">1,1</td><td>3,2</td></tr><tr><td>1,2</td></tr><tr><td>2,2</td></tr></tbody></table>',
+			},
+			{
+				note: '移动行：多行内移动，下移',
+				init: t => { t.reset(2,2); t.selectRange(1,1,2,1); t.merge(); t.moveRows(1,1,3); },
+				html: '<table><tbody><tr><td rowspan="2" class="selected">1,1</td><td>2,2</td></tr><tr><td>1,2</td></tr></tbody></table>',
+			},
+			{
+				note: '移动行：多行内移动，上移',
+				init: t => { t.reset(2,2); t.selectRange(1,1,2,1); t.merge(); t.moveRows(1,1,3); },
+				html: '<table><tbody><tr><td rowspan="2" class="selected">1,1</td><td>2,2</td></tr><tr><td>1,2</td></tr></tbody></table>',
+			},
+			{
+				note: '移动行：多行内移动，多个跨行',
+				init: t => { t.reset(4,3); t.selectRange(1,1,4,1); t.merge(); t.selectRange(2,2,3,2); t.merge(); t.moveRows(2,1,4); },
+				html: '<table><tbody><tr><td rowspan="4">1,1</td><td>1,2</td><td>1,3</td></tr><tr><td rowspan="2" class="selected">2,2</td><td>3,3</td></tr><tr><td>2,3</td></tr><tr><td>4,2</td><td>4,3</td></tr></tbody></table>',
+			},
+			{
+				note: '移动行：多行内移动，跨行在右边',
+				init: t => { t.reset(3,2); t.selectRange(1,2,3,2); t.merge(); t.moveRows(1,1,3); },
+				html: '<table><tbody><tr><td>2,1</td><td rowspan="3" class="selected">1,2</td></tr><tr><td>1,1</td></tr><tr><td>3,1</td></tr></tbody></table>',
+			},
+			{
+				note: '移动行：多行内移动，跨行在右边，两列',
+				init: t => { t.reset(2,3); t.selectRange(1,2,2,2); t.merge(); t.selectRange(1,3,2,3); t.merge(); t.moveRows(1,1,3); },
+				html: '<table><tbody><tr><td>2,1</td><td rowspan="2">1,2</td><td rowspan="2" class="selected">1,3</td></tr><tr><td>1,1</td></tr></tbody></table>',
 			},
 			{
 				note: '撤销：不双重保存，因为内部调用了 split（原本也会再自己 save 一次）',
