@@ -92,7 +92,7 @@ class Table {
 						bar = document.createElement('div');
 						bar.style.position = 'fixed';
 						bar.style.pointerEvents = 'none';
-						bar.style.backgroundColor = 'accentColor';
+						bar.style.backgroundColor = "var(--accent-color, 'gray')";
 						document.body.appendChild(bar);
 					}
 

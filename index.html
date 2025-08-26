@@ -3,6 +3,9 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1">
 <style>
+:root {
+	--accent-color: deeppink;
+}
 @media (prefers-color-scheme: dark) {
 	body {
 		background-color: black;
@@ -24,7 +27,7 @@ th {
 	background-color: #ccc6;
 }
 td.selected, th.selected {
-	background-color: accentColor;
+	background-color: var(--accent-color);
 }
 td.editing, th.editing {
 	background-color: white;
@@ -37,6 +40,7 @@ td.editing, th.editing {
 </style>
 </head>
 <body>
+<p><a href="https://github.com/movsb/javascript-table-editor">GitHub: movsb/javascript-table-editor</a></p>
 <p>
 	<input name="size" type="text" value="4,4" style="width:10ch;" autocomplete="off">
 	<button type="button" onclick="reset()">Reset</button>
