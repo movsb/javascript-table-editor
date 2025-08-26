@@ -26,28 +26,35 @@ class Table {
 		this._handleEvents();
 	}
 
-	_handleEvents() {
-		/**
-		 * 从事件元素 element 获取当前的单元格。
-		 * @param {HTMLElement} element 
-		 * @returns {HTMLTableCellElement | null}
-		 */
-		const _getCell = (element) => {
-			if(element instanceof HTMLDocument) return null;
-			element = element.closest('td') || element.closest('th');
-			if(element && element.closest('table') == this.table) {
-				return element;
-			}
-			return null;
-		}
+	static isDesktopDevice() {
+		return !('ontouchstart' in window);
+	}
 
+	/**
+	 * 从事件元素 element 获取当前的单元格。
+	 * 
+	 * @param {HTMLElement} element 
+	 * @returns {HTMLTableCellElement | null}
+	 */
+	_getCellFromEventTarget(element) {
+		// document.elementFromPoint 可能返回空，需要处理。
+		if (!element) return null;
+		if(element instanceof HTMLDocument) return null;
+		element = element.closest('td') || element.closest('th');
+		if(element && element.closest('table') == this.table) {
+			return element;
+		}
+		return null;
+	}
+
+	_handleEvents() {
 		this.table.addEventListener('click', (e) => {
-			const cell = _getCell(e.target);
+			const cell = this._getCellFromEventTarget(e.target);
 			if (!cell) { return; }
 			this._selectCell(cell, false);
 		});
 		this.table.addEventListener('dblclick', (e) => {
-			const cell = _getCell(e.target);
+			const cell = this._getCellFromEventTarget(e.target);
 			if (!cell) { return; }
 			if(cell == this.curCell && this._isEditing(cell)) {
 				return;
@@ -59,180 +66,198 @@ class Table {
 			this._edit(cell, true);
 		});
 
-		this.table.addEventListener('keydown', e => {
-			if(e.key == 'Tab' && this.curCell && this._isEditing(this.curCell)) {
-				if(this._navigate(!e.shiftKey)) {
-					e.preventDefault();
-				}
-			}
-		});
 
-		if (!('ontouchstart' in window)) {
+		if(Table.isDesktopDevice()) {
+			this.table.addEventListener('keydown', e => {
+				if(e.key == 'Tab' && this.curCell && this._isEditing(this.curCell)) {
+					if(this._navigate(!e.shiftKey)) {
+						e.preventDefault();
+					}
+				}
+			});
+
 			this.table.addEventListener('mousedown', e => {
-				const cell = _getCell(e.target);
-				if(!cell) { return; }
-
-				const startCell = cell;
-				const startCellSelected = this._isSelected(startCell);
-
-				/**
-				 * lazy calculated
-				 * @type {{valid: boolean, r1: number, r2: number, c1: number, c2: number}}
-				 */
-				let selectionCoords = null;
-				/** @type {{valid: boolean, row: boolean, from: number, count: number, to: number}} */
-				let moveCoords = {};
-
-				/** @type {HTMLTableElement} */
-				let shadow = null;
-				let shadowShow = false;
-				let shadowX = e.offsetX, shadowY = e.offsetY;
-				let shadowClientX = e.clientX, shadowClientY = e.clientY;
-
-				/** @type {HTMLDivElement} */
-				let bar = null;
-				/**
-				 * @param {number}  pos         Bar X if vertical; Bar Y if Horizontal.
-				 * @param {boolean} horizontal  Bar layout
-				 */
-				let placeBar = (pos, horizontal) => {
-					if (!bar) {
-						bar = document.createElement('div');
-						bar.style.position = 'fixed';
-						bar.style.pointerEvents = 'none';
-						bar.style.backgroundColor = "var(--accent-color, 'gray')";
-						document.body.appendChild(bar);
-					}
-
-					const rc = this.table.getBoundingClientRect();
-
-					if(horizontal) {
-						bar.style.left = `${rc.left}px`;
-						bar.style.top = `${pos-1}px`;
-						bar.style.height = '3px';
-						bar.style.width = `${rc.width}px`;
-					} else {
-						bar.style.left = `${pos-1}px`;
-						bar.style.top = `${rc.top}px`;
-						bar.style.width = '3px';
-						bar.style.height = `${rc.height}px`;
-					}
-				};
-
-				/**
-				 * @param {MouseEvent} e 
-				 */
-				const moveHandler = e => {
-					const cell = _getCell(e.target);
-
-					if(startCellSelected) {
-						if(!shadowShow) {
-							shadowShow = true;
-							shadow = this._createShadow();
-							shadow.style.opacity = 0.7;
-							shadow.style.position = 'fixed';
-							shadow.style.pointerEvents = 'none';
-							document.body.appendChild(shadow);
-
-							// lazy
-							selectionCoords = this._calculateSelectionCoords();
-						}
-
-						// 鼠标在表格内移动。
-						if (cell) {
-							// 判断是水平移动还是纵向移动。
-							const isHorizontal = Math.abs(e.clientX-shadowClientX) > Math.abs(e.clientY-shadowClientY);
-							const rc = cell.getBoundingClientRect();
-							const sc = selectionCoords;
-							const cc = this._getCoords(cell);
-
-							if (isHorizontal) {
-								const center = rc.width / 2;
-								const left = e.offsetX < center;
-								placeBar(left?rc.left:rc.right, false);
-								moveCoords = {row: false, from: sc.c1, count: sc.c2-sc.c1+1, to: left ? cc.c1 : cc.c2+1};
-								moveCoords.valid = sc.valid && this._canMoveCols(moveCoords.from, moveCoords.count, moveCoords.to);
-								this.table.style.cursor = moveCoords.valid ? 'col-resize' : 'not-allowed';
-							} else if(!isHorizontal) {
-								const middle = rc.height / 2;
-								const top = e.offsetY < middle;
-								placeBar(top?rc.top:rc.bottom, true);
-								moveCoords = {row: true, from: sc.r1, count: sc.r2-sc.r1+1, to: top ? cc.r1 : cc.r2+1};
-								moveCoords.valid = sc.valid && this._canMoveRows(moveCoords.from, moveCoords.count, moveCoords.to);
-								this.table.style.cursor = moveCoords.valid ? 'row-resize' : 'not-allowed';
-							}
-						}
-
-						// 即便不在表格内移动，也可以显示。
-						shadow.style.left = `${e.clientX - shadowX}px`;
-						shadow.style.top = `${e.clientY - shadowY}px`;
-					} else {
-						if(!cell) { return; }
-
-						// 防止在同一个元素内移动时因频繁 clearSelection 导致失去编辑焦点。
-						if (cell == startCell && this.selectedCells.length <= 1) {
-							return;
-						}
-						this._selectRange(startCell, cell);
-					}
-				};
-
-				if(!this._isEditing(startCell)) {
-					document.addEventListener('mousemove', moveHandler);
-					document.addEventListener('mouseup', ()=>{
-						document.removeEventListener('mousemove', moveHandler);
-						shadow && shadow.remove();
-						bar && bar.remove();
-						this.table.style.cursor = '';
-
-						if(moveCoords?.valid) {
-							if(moveCoords.row) {
-								this.moveRows(moveCoords.from, moveCoords.count, moveCoords.to);
-							} else {
-								this.moveCols(moveCoords.from, moveCoords.count, moveCoords.to);
-							}
-						}
-					}, { once: true });
-				}
+				this._mousedownHandler(e);
 			});
 		} else {
-			// 不知道为什么必须定义在外面，否则一直是固定值。
-			/** @type {HTMLTableCellElement} */
-			let startCell, endCell;
-			let clickTimer = null;
-			this.table.addEventListener('touchstart', e => {
+			this.table.addEventListener('touchstart', e=> {
 				if(e.touches.length > 1) { return; }
+				this._mousedownHandler(e);
+			});
+		}
+	}
 
-				const cell = _getCell(e.target);
+	/**
+	 * 从事件取坐标。兼容层。
+	 * @typedef {Object} PointerPosition
+	 * @property {number} clientX
+	 * @property {number} clientY
+	 * @property {number} offsetX
+	 * @property {number} offsetY
+	 * 
+	 * @param {MouseEvent | TouchEvent} e 
+	 * @returns {PointerPosition}
+	 */
+	_getPointerPosition(e) {
+		const clientX = e.clientX ?? e.touches[0].clientX;
+		const clientY = e.clientY ?? e.touches[0].clientY;
+
+		let offsetX = e.offsetX;
+		let offsetY = e.offsetY;
+
+		if(offsetX === undefined) {
+			const rc = e.target.getBoundingClientRect();
+			offsetX = clientX - rc.left;
+			offsetY = clientY - rc.top;
+		}
+
+		return { clientX, clientY, offsetX, offsetY };
+	}
+
+	_mousedownHandler(e) {
+		const cell = this._getCellFromEventTarget(e.target);
+		if(!cell) { return; }
+
+		const startCell = cell;
+		const startCellSelected = this._isSelected(startCell);
+
+		/**
+		 * lazy calculated
+		 * @type {{valid: boolean, r1: number, r2: number, c1: number, c2: number}}
+		 */
+		let selectionCoords = null;
+		/** @type {{valid: boolean, row: boolean, from: number, count: number, to: number}} */
+		let moveCoords = {};
+
+		/** @type {HTMLTableElement} */
+		let shadow = null;
+		let shadowShow = false;
+		const pp = this._getPointerPosition(e);
+		let shadowX = pp.offsetX, shadowY = pp.offsetY;
+		let shadowClientX = pp.clientX, shadowClientY = pp.clientY;
+
+		/** @type {HTMLDivElement} */
+		let bar = null;
+		/**
+		 * @param {number}  pos         Bar X if vertical; Bar Y if Horizontal.
+		 * @param {boolean} horizontal  Bar layout
+		 */
+		let placeBar = (pos, horizontal) => {
+			if (!bar) {
+				bar = document.createElement('div');
+				bar.style.position = 'fixed';
+				bar.style.pointerEvents = 'none';
+				bar.style.backgroundColor = "var(--accent-color, 'gray')";
+				document.body.appendChild(bar);
+			}
+
+			const rc = this.table.getBoundingClientRect();
+
+			if(horizontal) {
+				bar.style.left = `${rc.left}px`;
+				bar.style.top = `${pos-1}px`;
+				bar.style.height = '3px';
+				bar.style.width = `${rc.width}px`;
+			} else {
+				bar.style.left = `${pos-1}px`;
+				bar.style.top = `${rc.top}px`;
+				bar.style.width = '3px';
+				bar.style.height = `${rc.height}px`;
+			}
+		};
+
+		/**
+		 * @param {MouseEvent|TouchEvent} e 
+		 */
+		const moveHandler = e => {
+			const pp = this._getPointerPosition(e);
+			const cell = this._getCellFromEventTarget(
+				Table.isDesktopDevice() ? e.target
+				: document.elementFromPoint(pp.clientX, pp.clientY),
+			);
+
+			if(startCellSelected) {
+				if(!shadowShow) {
+					shadowShow = true;
+					shadow = this._createShadow();
+					shadow.style.opacity = 0.7;
+					shadow.style.position = 'fixed';
+					shadow.style.pointerEvents = 'none';
+					document.body.appendChild(shadow);
+
+					// lazy
+					selectionCoords = this._calculateSelectionCoords();
+				}
+
+				// 鼠标在表格内移动。
+				if (cell) {
+					// 判断是水平移动还是纵向移动。
+					const isHorizontal = Math.abs(pp.clientX-shadowClientX) > Math.abs(pp.clientY-shadowClientY);
+					const rc = cell.getBoundingClientRect();
+					const sc = selectionCoords;
+					const cc = this._getCoords(cell);
+
+					if (isHorizontal) {
+						const center = rc.width / 2;
+						const left = pp.offsetX < center;
+						placeBar(left?rc.left:rc.right, false);
+						moveCoords = {row: false, from: sc.c1, count: sc.c2-sc.c1+1, to: left ? cc.c1 : cc.c2+1};
+						moveCoords.valid = sc.valid && this._canMoveCols(moveCoords.from, moveCoords.count, moveCoords.to);
+						this.table.style.cursor = moveCoords.valid ? 'col-resize' : 'not-allowed';
+					} else if(!isHorizontal) {
+						const middle = rc.height / 2;
+						const top = pp.offsetY < middle;
+						placeBar(top?rc.top:rc.bottom, true);
+						moveCoords = {row: true, from: sc.r1, count: sc.r2-sc.r1+1, to: top ? cc.r1 : cc.r2+1};
+						moveCoords.valid = sc.valid && this._canMoveRows(moveCoords.from, moveCoords.count, moveCoords.to);
+						this.table.style.cursor = moveCoords.valid ? 'row-resize' : 'not-allowed';
+					}
+				}
+
+				// 即便不在表格内移动，也可以显示。
+				shadow.style.left = `${pp.clientX - shadowX}px`;
+				shadow.style.top = `${pp.clientY - shadowY}px`;
+			} else {
 				if(!cell) { return; }
 
-				startCell = cell;
-				endCell = cell;
+				// 防止在同一个元素内移动时因频繁 clearSelection 导致失去编辑焦点。
+				if (cell == startCell && this.selectedCells.length <= 1) {
+					return;
+				}
 
-				/**
-				 * 
-				 * @param {TouchEvent} e 
-				 * @returns 
-				 */
-				const moveHandler = e => {
-					const target = document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY);
-					const cell = _getCell(target);
-					if(!cell) { return; }
+				this._selectRange(startCell, cell);
+			}
+		};
 
-					// 防止在同一个元素内移动时因频繁 clearSelection 导致失去编辑焦点。
-					if (cell == startCell && this.selectedCells.length <= 1) {
-						return;
+		if(!this._isEditing(startCell)) {
+			document.addEventListener(
+				Table.isDesktopDevice() ? 'mousemove' : 'touchmove',
+				moveHandler,
+			);
+
+			const mouseupHandler = e => {
+				document.removeEventListener(
+					Table.isDesktopDevice() ? 'mousemove' : 'touchmove',
+					moveHandler,
+				);
+
+				shadow && shadow.remove();
+				bar && bar.remove();
+				this.table.style.cursor = '';
+
+				if(moveCoords?.valid) {
+					if(moveCoords.row) {
+						this.moveRows(moveCoords.from, moveCoords.count, moveCoords.to);
+					} else {
+						this.moveCols(moveCoords.from, moveCoords.count, moveCoords.to);
 					}
+				}
+			};
 
-					this._selectRange(startCell, cell);
-					endCell = cell;
-				};
-
-				document.addEventListener('touchmove', moveHandler);
-				document.addEventListener('touchend', (e)=>{
-					document.removeEventListener('touchmove', moveHandler);
-				}, { once: true });
-			});
+			document.addEventListener(
+				Table.isDesktopDevice() ? 'mouseup' : 'touchend',
+				e => mouseupHandler(e), { once: true },
+			);
 		}
 	}
 

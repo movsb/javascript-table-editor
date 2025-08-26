@@ -11,6 +11,10 @@ A vanilla JavaScript Table Editor, which supports:
 * Toggle Headers
 * Drag & drop to Re-order.
 
+## TODO
+
+- [ ] Fix move indicator bar position issue for scaled viewport on Safari.
+
 ## License
 
 MIT.
