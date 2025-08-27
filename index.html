@@ -76,9 +76,10 @@ td.editing, th.editing {
 </p>
 <p>Select & Drag then Drop to Re-Order Rows/Cols.</p>
 <p>Double-click to Edit.</p>
-<script src="table.js"></script>
 <div id="table"></div>
-<script>
+<script type="module">
+import { Table } from "./table.js";
+
 let t = new Table('#table');
 
 function reset() {
@@ -96,8 +97,10 @@ function reset() {
 	});
 }
 
-reset();
+window.t = t;
+window.reset = reset;
 
+reset();
 </script>
 </body>
 </html>

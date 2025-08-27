@@ -1,0 +1,24 @@
+{
+  "name": "javascript-table-editor",
+  "version": "1.0.1",
+  "description": "Live Demo: <https://movsb.github.io/javascript-table-editor/>.",
+  "main": "table.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "bun run build:all",
+    "build:esm": "bun build --outfile dist/table.esm.min.js --format esm --minify table.js",
+    "build:iife": "bun build --outfile dist/table.iife.min.js --format iife --minify table.js",
+    "build:all": "bun run build:esm && bun run build:iife"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/movsb/javascript-table-editor.git"
+  },
+  "files": ["dist/table.esm.min.js", "dist/table.iife.min.js"],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/movsb/javascript-table-editor/issues"
+  },
+  "homepage": "https://github.com/movsb/javascript-table-editor#readme"
+}

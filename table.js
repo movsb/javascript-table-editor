@@ -1,4 +1,4 @@
-class Table {
+export class Table {
 	/**
 	 * 
 	 * @param {string | HTMLElement | undefined} placeholder 
@@ -24,7 +24,7 @@ class Table {
 		 * 但是要注意：最后一个元素不一定在视觉上是最右下角的元素。
 		 * @type {HTMLTableCellElement[]}
 		 */
-		this.selectedCells = [];
+		this._selectedCells = [];
 
 		/** @type {Boolean} 是否展示调试内容。 */
 		this._resetWithCoords = false;
@@ -234,7 +234,7 @@ class Table {
 				if(!cell) { return; }
 
 				// 防止在同一个元素内移动时因频繁 clearSelection 导致失去编辑焦点。
-				if (cell == startCell && this.selectedCells.length <= 1) {
+				if (cell == startCell && this._selectedCells.length <= 1) {
 					return;
 				}
 
@@ -308,7 +308,7 @@ class Table {
 	}
 
 	_calculateSelectionCoords() {
-		const selection = [...this.selectedCells];
+		const selection = [...this._selectedCells];
 		if(this.curCell) selection.push(this.curCell);
 
 		let r1 = this.table.rows.length, c1 = this._maxCols(), r2 = 1, c2 = 1;
@@ -336,7 +336,7 @@ class Table {
 	 */
 	_createShadow() {
 		/** @type {NodeListOf<HTMLTableCellElement>} */
-		const selection = [...this.selectedCells];
+		const selection = [...this._selectedCells];
 		this.curCell && selection.push(this.curCell);
 		if(selection.length <= 0) {
 			throw new Error('no selection');
@@ -536,7 +536,7 @@ class Table {
 				if(some) {
 					if(all) {
 						this._highlight(cell, true);
-						this.selectedCells.push(cell);
+						this._selectedCells.push(cell);
 					} else {
 						valid = false;
 					}
@@ -586,11 +586,11 @@ class Table {
 			this._edit(this.curCell, false);
 		}
 		this.curCell = null;
-		this.selectedCells.forEach(cell => {
+		this._selectedCells.forEach(cell => {
 			this._highlight(cell, false);
 			this._edit(cell, false);
 		})
-		this.selectedCells = [];
+		this._selectedCells = [];
 	}
 
 	/**
@@ -686,7 +686,7 @@ class Table {
 	toDataCols()   { return this._toCells(false, 'TH', 'TD'); }
 
 	_toCells(byRow, from, to) {
-		const selected = [...this.selectedCells];
+		const selected = [...this._selectedCells];
 		if(this.curCell) selected.push(this.curCell);
 		if (selected.length <= 0) {
 			alert('Please select at least one cell.');
@@ -883,8 +883,8 @@ class Table {
 			for(let i=cc.r1; i<=cc.r2; i++) {
 				rows.push(i);
 			}
-		} else if(this.selectedCells?.length > 0) {
-			this.selectedCells.forEach(cell => {
+		} else if(this._selectedCells?.length > 0) {
+			this._selectedCells.forEach(cell => {
 				const cc = this._getCoords(cell);
 				for(let i=cc.r1; i<=cc.r2; i++) {
 					rows.push(i);
@@ -952,8 +952,8 @@ class Table {
 			for(let i=cc.c1; i<=cc.c2; i++) {
 				cols.push(i);
 			}
-		} else if(this.selectedCells?.length > 0) {
-			this.selectedCells.forEach(cell => {
+		} else if(this._selectedCells?.length > 0) {
+			this._selectedCells.forEach(cell => {
 				const cc = this._getCoords(cell);
 				for(let i=cc.c1; i<=cc.c2; i++) {
 					cols.push(i);
@@ -1026,22 +1026,22 @@ class Table {
 		}
 	}
 	_merge() {
-		if(this.selectedCells.length < 2) {
+		if(this._selectedCells.length < 2) {
 			alert('Please select at least two cells to merge.');
 			return false;
 		}
 
-		const firstCell = this.selectedCells[0];
+		const firstCell = this._selectedCells[0];
 
 		// 找最右最下的元素，并非一定是最后一个元素。
-		// const lastCell = this.selectedCells[this.selectedCells.length - 1];
+		// const lastCell = this._selectedCells[this._selectedCells.length - 1];
 
 		let lastCell = firstCell;
 
 		const firstCoords = this._getCoords(firstCell);
 		let lastCoords = this._getCoords(lastCell);
 
-		this.selectedCells.forEach(cell => {
+		this._selectedCells.forEach(cell => {
 			const cc = this._getCoords(cell);
 			if (cc.r2 >= lastCoords.r2 && cc.c2 >= lastCoords.c2) {
 				lastCell = cell;
@@ -1053,8 +1053,8 @@ class Table {
 		const colSpan = lastCoords.c2 - firstCoords.c1 + 1;
 
 		// 移除所有其它元素。以第一个为合并标准。它总是位于最左上角位置，即第一个元素。
-		for(let i=1; i<this.selectedCells.length; i++) {
-			const cell = this.selectedCells[i];
+		for(let i=1; i<this._selectedCells.length; i++) {
+			const cell = this._selectedCells[i];
 			cell.remove();
 		}
 
@@ -1731,4 +1731,8 @@ try {
 	tt.run();
 } catch(e) {
 	console.error(e);
+}
+
+if (typeof window !== 'undefined') {
+	window.JavaScriptTableEditor = { Table };
 }
