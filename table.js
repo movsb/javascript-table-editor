@@ -42,6 +42,12 @@ export class Table extends EventTarget {
 		/** @type {boolean} 解决新行/新列高度/宽度问题 */
 		this._fill_with_nbsp = true;
 
+		// For mobile browsers. Tap two cells to create range.
+		/** @type {boolean} */
+		this._mobileRangeSelectionStarted = false;
+		/** @type {HTMLTableCellElement} */
+		this._mobileRangeSelectionCell1 = null;
+
 		// Redo/Undo 数据。
 		// https://github.com/movsb/tinymde-with-undo-redo/blob/main/index.html
 		this._stack = [];
@@ -76,8 +82,21 @@ export class Table extends EventTarget {
 			const cell = this._getCellFromEventTarget(e.target);
 			if (!cell) { return; }
 			this._selectCell(cell, false);
+
+			if(this._mobileRangeSelectionStarted) {
+				if(!this._mobileRangeSelectionCell1) {
+					this._mobileRangeSelectionCell1 = cell;
+				} else {
+					this._mobileRangeSelectionStarted = false;
+					this._selectRange(this._mobileRangeSelectionCell1, cell);
+				}
+			}
 		});
 		this.table.addEventListener('dblclick', (e) => {
+			if(this._mobileRangeSelectionStarted) {
+				return;
+			}
+
 			const cell = this._getCellFromEventTarget(e.target);
 			if (!cell) { return; }
 			if(cell == this.curCell && this._isEditing(cell)) {
@@ -101,10 +120,16 @@ export class Table extends EventTarget {
 			});
 
 			this.table.addEventListener('mousedown', e => {
+				if(this._mobileRangeSelectionStarted) {
+					return;
+				}
 				this._mousedownHandler(e);
 			});
 		} else {
 			this.table.addEventListener('touchstart', e=> {
+				if(this._mobileRangeSelectionStarted) {
+					return;
+				}
 				if(e.touches.length > 1) { return; }
 				this._mousedownHandler(e);
 			});
@@ -487,6 +512,16 @@ export class Table extends EventTarget {
 	_setCoords(cell, coords) {
 		cell._coords = coords;
 	}
+
+	/**
+	 * For mobile devices, create range selection by tapping two cells one by one.
+	 * instead of drag, which is disturbing the page scroll.
+	 */
+	startRangeSelection() {
+		this._mobileRangeSelectionStarted = true;
+		this._mobileRangeSelectionCell1 = null;
+		this.clearSelection();
+	}
 	
 	/**
 	 * @param {Number} r1 
@@ -501,6 +536,7 @@ export class Table extends EventTarget {
 	}
 
 	/**
+	 * Select all cells enclosed by the largest edges of cell1 and cell2.
 	 * @param {HTMLTableCellElement} cell1 
 	 * @param {HTMLTableCellElement} cell2 
 	 */

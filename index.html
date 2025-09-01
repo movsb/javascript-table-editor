@@ -38,6 +38,13 @@ td.editing, th.editing {
 		background-color: black;
 	}
 }
+
+div.mobile { display: none;}
+@media (hover: none) {
+	div.desktop { display: none;}
+	div.mobile { display: block;}
+}
+
 </style>
 </head>
 <body>
@@ -74,7 +81,14 @@ td.editing, th.editing {
 	<button type="button" onclick="t.toDataRows()">To Data Rows</button>
 	<button type="button" onclick="t.toDataCols()">To Data Cols</button>
 </p>
-<p>Select & Drag then Drop to Re-Order Rows/Cols.</p>
+<div class="desktop">
+	<p>Select & Drag then Drop to Re-Order Rows/Cols.</p>
+</div>
+<div class="mobile">
+	<p>
+		<button type="button" onclick="t.startRangeSelection()">Start range selection by tap on two cells</button>
+	</p>
+</div>
 <p>Double-click to Edit.</p>
 <div id="table"></div>
 <script type="module">
