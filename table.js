@@ -39,8 +39,8 @@ export class Table extends EventTarget {
 
 		/** @type {Boolean} 是否展示调试内容。 */
 		this._resetWithCoords = false;
-		/** @type {Boolean} 是否 fix empty line height */
-		this._fixLineHeight = true;
+		/** @type {boolean} 解决新行/新列高度/宽度问题 */
+		this._fill_with_nbsp = true;
 
 		// Redo/Undo 数据。
 		// https://github.com/movsb/tinymde-with-undo-redo/blob/main/index.html
@@ -440,14 +440,8 @@ export class Table extends EventTarget {
 					const th = document.createElement('th');
 					tr.appendChild(th);
 				} else {
-					const td = tr.insertCell();
+					this._createCell(tr);
 				}
-			}
-			if(this._fixLineHeight) {
-				// 任何列都可以。只是 firefox 上此单元格双击时不显示光标。
-				const last = tr.cells[cols-1];
-				last.innerHTML = '\u200b';
-				last._fixing = true;
 			}
 		}
 
@@ -670,15 +664,6 @@ export class Table extends EventTarget {
 			cell.classList.add('editing');
 			cell.focus();
 
-			if(this._fixLineHeight) {
-				if(cell._fixing) {
-					if(cell.innerHTML == '\u200b') {
-						cell.textContent = '';
-					}
-					cell._fixing = false;
-				}
-			}
-
 			// 保存旧内容，对比并判断是否需要进栈。
 			cell._data = cell.textContent;
 
@@ -823,7 +808,7 @@ export class Table extends EventTarget {
 		if (newRowIndex == 0 || newRowIndex == this.table.rows.length) {
 			const tr = this.table.insertRow(newRowIndex);
 			for(let i=0; i<maxCols; i++) {
-				tr.insertCell();
+				this._createCell(tr);
 			}
 		} else {
 			// const refRow = this.table.rows[newRowIndex];
@@ -854,7 +839,7 @@ export class Table extends EventTarget {
 
 			const tr = this.table.insertRow(newRowIndex);
 			for(let i=0; i<insertCount; i++) {
-				tr.insertCell();
+				this._createCell(tr);
 			}
 		}
 
@@ -901,7 +886,7 @@ export class Table extends EventTarget {
 			const rows = this.table.rows.length;
 			for(let i=0; i<rows; i++) {
 				const row = this.table.rows[i];
-				row.insertCell(position=='left' ? 0 : -1);
+				this._createCell(row, position=='left' ? 0 : -1);
 			}
 			this._calcCoords();
 			this._save();
@@ -922,7 +907,7 @@ export class Table extends EventTarget {
 				if(cell.rowSpan > 1 && i+1 != cc.r1) {
 					pos--;
 				}
-				const td = row.insertCell(pos);
+				const td = this._createCell(row, pos);
 				this._setCoords(td, {
 					r1: rr, c1: rc,
 					r2: rr, c2: rc,
@@ -948,6 +933,20 @@ export class Table extends EventTarget {
 	 */
 	_copyCellData(from, to) {
 		to.innerHTML = from.innerHTML;
+	}
+
+	/**
+	 * 
+	 * @param {HTMLTableRowElement} row 
+	 * @param {number | undefined} pos 
+	 * @returns {HTMLTableCellElement}
+	 */
+	_createCell(row, pos) {
+		const td = row.insertCell(pos);
+		if(this._fill_with_nbsp) {
+			td.innerHTML = '&nbsp;';
+		}
+		return td;
 	}
 
 	deleteRows() {
@@ -1186,7 +1185,7 @@ export class Table extends EventTarget {
 					if(i==cc.r1 && k==0) {
 						continue;
 					}
-					row.insertCell(k);
+					this._createCell(row, k);
 				}
 				continue;
 			}
@@ -1216,7 +1215,7 @@ export class Table extends EventTarget {
 			const realRowIndex = cc.r1 - 1 + relativeRowIndex;
 			const row = this.table.rows[realRowIndex];
 			indices.forEach(colIndex => {
-				row.insertCell(colIndex);
+				this._createCell(row, colIndex);
 			});
 		});
 
@@ -1777,8 +1776,10 @@ class TableTest {
 	run() {
 		this.cases.forEach((t, index) => {
 			const table = new Table();
-			table._fixLineHeight = false;
+
 			table._resetWithCoords = true;
+			table._fill_with_nbsp = false;
+
 			try {
 				try {
 					t.init(table);
