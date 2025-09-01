@@ -1559,6 +1559,62 @@ export class Table extends EventTarget {
 		return true;
 	}
 
+	/**
+	 * Move selection rows up.
+	 * @returns 
+	 */
+	moveRowsUp() { return this._move('up'); }
+	/**
+	 * Move selection rows down.
+	 * @returns 
+	 */
+	moveRowsDown() { return this._move('down'); }
+	/**
+	 * Move selection cols left.
+	 * @returns 
+	 */
+	moveColsLeft() { return this._move('left'); }
+	/**
+	 * Move selection cols right.
+	 * @returns 
+	 */
+	moveColsRight() { return this._move('right'); }
+
+	_move(dir) {
+		const selection = [...this._selectedCells];
+		if(this.curCell) selection.push(this.curCell);
+		if(selection.length <= 0) { return; }
+
+		const maxCols = this._maxCols();
+		const maxRows = this.table.rows.length;
+
+		let r1=maxRows, r2=1, c1=maxCols, c2=1;
+		selection.forEach(cell => {
+			const cc = this._getCoords(cell);
+			r1 = Math.min(r1, cc.r1);
+			r2 = Math.max(r2, cc.r2);
+			c1 = Math.min(c1, cc.c1);
+			c2 = Math.max(c2, cc.c2);
+		});
+
+		switch(dir) {
+		case 'up':
+		case 'down':
+			const r = dir == 'up' ? r1-1 : r2+2;
+			if(this._canMoveRows(r1, r2-r1+1, r)) {
+				this.moveRows(r1, r2-r1+1, r);
+			}
+			break;
+		case 'left':
+		case 'right':
+			const c = dir == 'left' ? c1-1 : c2+2;
+			if(this._canMoveCols(c1, c2-c1+1, c)) {
+				this.moveCols(c1, c2-c1+1, c);
+			}
+			break;
+		}
+	}
+
 	// TODO 由于列数总是一致的，所以取第一行的最后一列即可，无需判断所有行。
 	_maxCols() {
 		let maxCol = 0;
