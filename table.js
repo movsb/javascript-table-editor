@@ -147,9 +147,9 @@ export class Table extends EventTarget {
 		/** @type {HTMLTableElement} */
 		let shadow = null;
 		let shadowShow = false;
-		const pp = this._getPointerPosition(e);
-		let shadowX = pp.offsetX, shadowY = pp.offsetY;
-		let shadowClientX = pp.clientX, shadowClientY = pp.clientY;
+		const pp1 = this._getPointerPosition(e);
+		let shadowX = pp1.offsetX, shadowY = pp1.offsetY;
+		let shadowClientX = pp1.clientX, shadowClientY = pp1.clientY;
 
 		/** @type {HTMLDivElement} */
 		let bar = null;
@@ -192,6 +192,12 @@ export class Table extends EventTarget {
 			);
 
 			if(startCellSelected) {
+				// 简单判断一下并移除微小的移动（防抖）。
+				const smallMoveDelta = 8;
+				if(!shadowShow && Math.abs(pp1.clientX - pp.clientX) < smallMoveDelta && Math.abs(pp1.clientY - pp.clientY)< smallMoveDelta) {
+					return;
+				}
+
 				if(!shadowShow) {
 					shadowShow = true;
 					shadow = this._createShadow();
