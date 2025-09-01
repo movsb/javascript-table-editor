@@ -1,6 +1,7 @@
 # JavaScript Table Editor
 
-Live Demo: <https://movsb.github.io/javascript-table-editor/>.
+Live Demo: <https://movsb.github.io/javascript-table-editor/>.\
+NPM: [javascript-table-editor - npm](https://www.npmjs.com/package/javascript-table-editor)
 
 A vanilla JavaScript Table Editor, which supports:
 

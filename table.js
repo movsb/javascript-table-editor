@@ -259,7 +259,8 @@ export class Table extends EventTarget {
 			}
 		};
 
-		if(!this._isEditing(startCell)) {
+		// 移动设备的拖动效果太差了（会滚动页面），先禁用。
+		if(Table.isDesktopDevice() && !this._isEditing(startCell)) {
 			document.addEventListener(
 				Table.isDesktopDevice() ? 'mousemove' : 'touchmove',
 				moveHandler,
@@ -786,25 +787,33 @@ export class Table extends EventTarget {
 		this._save();
 	}
 
+	/**
+	 * Adds a row above selection, or at first if there is no selection.
+	 * @returns {undefined}
+	 */
 	addRowAbove() { return this._addRow('above'); }
+
+	/**
+	 * Adds a row below selection, or at last if there is no selection.
+	 * @returns {undefined}
+	 */
 	addRowBelow() { return this._addRow('below'); }
 
 	_addRow(position) {
-		if (!this.curCell) {
-			alert('Please select a cell first.');
-			return;
+		let newRowIndex = position == 'above' ? 0 : this.table.rows.length;
+
+		if (this.curCell) {
+			/** @type {HTMLTableRowElement} */
+			const row = this.curCell.parentElement;
+			const curCell = this.curCell;
+
+			// 计算待插入行的逻辑行号。
+			// 初始化为上方（above）插入。
+			// 如果是下方，需要根据 rowspan 计算。
+			newRowIndex = position == 'above' 
+				? row.rowIndex
+				: row.rowIndex + curCell.rowSpan;
 		}
-
-		/** @type {HTMLTableRowElement} */
-		const row = this.curCell.parentElement;
-		const curCell = this.curCell;
-
-		// 计算待插入行的逻辑行号。
-		// 初始化为上方（above）插入。
-		// 如果是下方，需要根据 rowspan 计算。
-		let newRowIndex = position == 'above' 
-			? row.rowIndex
-			: row.rowIndex + curCell.rowSpan;
 
 		// 如果上方或正文的行没有 colspan，则 maxCols 代表本来应该插入的列数。
 		// 但是实际可能存在 colspan 和 rowspan，插入数量需要重新计算（更少）。
@@ -853,23 +862,42 @@ export class Table extends EventTarget {
 		this._save();
 	}
 
+	/**
+	 * Add a column at the left side of selection, or at left most if there is no selection.
+	 * @returns {undefined}
+	 */
 	addColLeft()  { return this._addCol('left');  }
+
+	/**
+	 * Add a column at the right side of selection, or at right most if there is no selection.
+	 * @returns {undefined}
+	 */
 	addColRight() { return this._addCol('right'); }
 
 	/** @param {string} position  */
 	_addCol(position) {
-		if (!this.curCell) {
-			alert('Please select a cell first.');
-			return;
-		}
+		const maxCols = this._maxCols();
+		const left = position == 'left';
 
-		/** @type {HTMLTableCellElement} */
-		const cell = this.curCell;
-		const cc = this._getCoords(cell);
+		let newColIndex = left ? 0 : maxCols;
+
+		if (this.curCell) {
+			/** @type {HTMLTableCellElement} */
+			const cell = this.curCell;
+			const cc = this._getCoords(cell);
+
+			if(cc.c1 == 1 && left) {
+				newColIndex = 0;
+			} else if(cc.c2 == maxCols && !left) {
+				newColIndex == maxCols;
+			} else {
+				newColIndex = left ? cc.c1 - 1 : cc.c2;
+			}
+		}
 
 		// 如果是第一列，不需要计算。
 		// 如果是最后一列，直接追加。
-		if (cc.c1 == 1 && position == 'left' || cc.c2 == this._maxCols() && position == 'right') {
+		if (newColIndex == 0 || newColIndex == maxCols) {
 			const rows = this.table.rows.length;
 			for(let i=0; i<rows; i++) {
 				const row = this.table.rows[i];
@@ -879,9 +907,6 @@ export class Table extends EventTarget {
 			this._save();
 			return;
 		}
-
-		const left = position == 'left';
-		const newColIndex = left ? cc.c1 - 1 : cc.c2;
 
 		const rows = this.table.rows.length;
 		for(let i=0; i<rows; i++) {
