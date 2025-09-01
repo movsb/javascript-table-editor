@@ -1,6 +1,6 @@
 {
   "name": "javascript-table-editor",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "description": "Live Demo: <https://movsb.github.io/javascript-table-editor/>.",
   "main": "table.js",
   "scripts": {

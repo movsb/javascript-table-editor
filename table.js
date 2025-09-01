@@ -1,9 +1,11 @@
-export class Table {
+export class Table extends EventTarget {
 	/**
 	 * 
 	 * @param {string | HTMLElement | undefined} placeholder 
 	 */
 	constructor(placeholder) {
+		super();
+
 		/** @type {HTMLElement} */
 		let elem = typeof placeholder == 'string'
 			? document.querySelector(placeholder)
@@ -369,6 +371,10 @@ export class Table {
 		const content = this.table.innerHTML;
 		this._stack[++this._stackIndex] = content;
 		this._stack.length = this._stackIndex+1;
+
+		this.dispatchEvent(new CustomEvent('change', {
+			detail: {},
+		}));
 	}
 	_use(content) {
 		this.table.innerHTML = content;
@@ -377,6 +383,10 @@ export class Table {
 		let cell = this.table.querySelector('.editing');
 		if(cell) this._edit(cell, false);
 		this._calcCoords();
+
+		this.dispatchEvent(new CustomEvent('change', {
+			detail: {},
+		}));
 	}
 
 	/**
