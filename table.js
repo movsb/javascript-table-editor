@@ -267,11 +267,9 @@ export class Table extends EventTarget {
 				this.table.style.cursor = '';
 
 				if(moveCoords?.valid) {
-					if(moveCoords.row) {
-						this.moveRows(moveCoords.from, moveCoords.count, moveCoords.to);
-					} else {
-						this.moveCols(moveCoords.from, moveCoords.count, moveCoords.to);
-					}
+					const fn = moveCoords.row ? this.moveRows : this.moveCols;
+					const args = [moveCoords.from, moveCoords.count, moveCoords.to];
+					fn.apply(this, args);
 				}
 			};
 
