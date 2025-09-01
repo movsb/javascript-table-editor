@@ -1,8 +1,9 @@
 {
   "name": "javascript-table-editor",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Live Demo: <https://movsb.github.io/javascript-table-editor/>.",
   "main": "table.js",
+  "keywords": ["javascript","table","editor"],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "bun run build:all",

@@ -1,10 +1,19 @@
+/**
+ * @typedef {Object} Options
+ * @property {boolean} enterSubmit 是否按下回车就提交数据。否则需要 ctrl-enter / cmd-enter。
+ */
+
 export class Table extends EventTarget {
 	/**
 	 * 
 	 * @param {string | HTMLElement | undefined} placeholder 
+	 * @param {Options} options 
 	 */
-	constructor(placeholder) {
+	constructor(placeholder, options) {
 		super();
+
+		/** @type {Options} */
+		this._options = options ?? {};
 
 		/** @type {HTMLElement} */
 		let elem = typeof placeholder == 'string'
@@ -635,6 +644,26 @@ export class Table extends EventTarget {
 	 * @param {boolean} on 
 	 */
 	_edit(cell, on) {
+		/**
+		 * If enterSubmit : Enter is submit, Shift+Enter is new line.
+		 * If !enterSubmit: Enter is new line, Ctrl/Cmd+Enter is submit.
+		 * @param {KeyboardEvent} e 
+		 * @returns 
+		 */
+		const enterHandler = e => {
+			if(e.key != 'Enter') { return; }
+
+			const enterSubmit = this._options.enterSubmit ?? false;
+			const plain = !(e.ctrlKey || e.shiftKey || e.metaKey || e.altKey);
+			const modifiers = e.ctrlKey || e.metaKey;
+
+			if(enterSubmit && plain || !enterSubmit && modifiers) {
+				this._edit(cell, false);
+				e.preventDefault();
+				e.stopImmediatePropagation();
+			}
+		};
+
 		if(on) {
 			cell.contentEditable = 'plaintext-only';
 			cell.classList.add('editing');
@@ -657,6 +686,9 @@ export class Table extends EventTarget {
 			const selection = window.getSelection();
 			selection.removeAllRanges();
 			selection.addRange(range);
+
+			// 处理回车按键是否提交数据。
+			cell.addEventListener('keydown', enterHandler);
 		} else {
 			// 如果正在编辑（而不是重复取消编辑），则说明可能内容需要保存。
 			if (!this._isEditing(cell)) { return }
@@ -669,6 +701,9 @@ export class Table extends EventTarget {
 			cell.className == "" && cell.removeAttribute('class');
 			// 会不会有误清除？
 			window.getSelection().removeAllRanges();
+
+			// 不再需要关心回车键。
+			cell.removeEventListener('keydown', enterHandler);
 		}
 	}
 
