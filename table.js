@@ -64,10 +64,6 @@ export class Table extends EventTarget {
 		this._handleEvents();
 	}
 
-	static isDesktopDevice() {
-		return !('ontouchstart' in window);
-	}
-
 	/**
 	 * 从事件元素 element 获取当前的单元格。
 	 * 
@@ -76,7 +72,7 @@ export class Table extends EventTarget {
 	 */
 	_getCellFromEventTarget(element) {
 		// document.elementFromPoint 可能返回空，需要处理。
-		if (!element) return null;
+		// if (!element) return null;
 		if(element instanceof HTMLDocument) return null;
 		element = element.closest('td') || element.closest('th');
 		if(element && element.closest('table') == this.table) {
@@ -118,34 +114,26 @@ export class Table extends EventTarget {
 		});
 
 
-		if(Table.isDesktopDevice()) {
-			this.table.addEventListener('keydown', e => {
-				if(e.key == 'Tab' && this.curCell && this._isEditing(this.curCell)) {
-					if(this._navigate(!e.shiftKey)) {
-						e.preventDefault();
-					}
+		this.table.addEventListener('keydown', e => {
+			if(e.key == 'Tab' && this.curCell && this._isEditing(this.curCell)) {
+				if(this._navigate(!e.shiftKey)) {
+					e.preventDefault();
 				}
-			});
+			}
+		});
 
-			this.table.addEventListener('mousedown', e => {
-				if(this._mobileRangeSelectionStarted) {
-					return;
-				}
-				this._mousedownHandler(e);
-			});
-		} else {
-			this.table.addEventListener('touchstart', e=> {
-				if(this._mobileRangeSelectionStarted) {
-					return;
-				}
-				if(e.touches.length > 1) { return; }
-				this._mousedownHandler(e);
-			});
-		}
+		this.table.addEventListener('mousedown', e => {
+			if(this._mobileRangeSelectionStarted) {
+				return;
+			}
+			this._mousedownHandler(e);
+		});
 	}
 
 	/**
 	 * 从事件取坐标。兼容层。
+	 * NOTE: 这个函数是之前为了兼容移动层写的，由于已经移除移动设备的事件处理，
+	 *      这段代码已经可以不要了。
 	 * @typedef {Object} PointerPosition
 	 * @property {number} clientX
 	 * @property {number} clientY
@@ -228,10 +216,7 @@ export class Table extends EventTarget {
 		 */
 		const moveHandler = e => {
 			const pp = this._getPointerPosition(e);
-			const cell = this._getCellFromEventTarget(
-				Table.isDesktopDevice() ? e.target
-				: document.elementFromPoint(pp.clientX, pp.clientY),
-			);
+			const cell = this._getCellFromEventTarget(e.target);
 
 			if(startCellSelected) {
 				// 简单判断一下并移除微小的移动（防抖）。
@@ -293,17 +278,11 @@ export class Table extends EventTarget {
 		};
 
 		// 移动设备的拖动效果太差了（会滚动页面），先禁用。
-		if(Table.isDesktopDevice() && !this._isEditing(startCell)) {
-			document.addEventListener(
-				Table.isDesktopDevice() ? 'mousemove' : 'touchmove',
-				moveHandler,
-			);
+		if(!this._isEditing(startCell)) {
+			document.addEventListener('mousemove', moveHandler);
 
 			const mouseupHandler = e => {
-				document.removeEventListener(
-					Table.isDesktopDevice() ? 'mousemove' : 'touchmove',
-					moveHandler,
-				);
+				document.removeEventListener('mousemove', moveHandler);
 
 				shadow && shadow.remove();
 				bar && bar.remove();
@@ -316,10 +295,7 @@ export class Table extends EventTarget {
 				}
 			};
 
-			document.addEventListener(
-				Table.isDesktopDevice() ? 'mouseup' : 'touchend',
-				e => mouseupHandler(e), { once: true },
-			);
+			document.addEventListener('mouseup', e => mouseupHandler(e), { once: true });
 		}
 	}
 
