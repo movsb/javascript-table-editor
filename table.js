@@ -686,15 +686,16 @@ export class Table extends EventTarget {
 		} else {
 			// 如果正在编辑（而不是重复取消编辑），则说明可能内容需要保存。
 			if (!this._isEditing(cell)) { return }
-			if(typeof cell._data == 'string' && cell.textContent != cell._data) {
-				this._save();
-			}
 
 			cell.removeAttribute('contentEditable');
 			cell.classList.remove('editing');
 			cell.className == "" && cell.removeAttribute('class');
 			// 会不会有误清除？
 			window.getSelection().removeAllRanges();
+
+			if(typeof cell._data == 'string' && cell.textContent != cell._data) {
+				this._save();
+			}
 
 			// 不再需要关心回车键。
 			cell.removeEventListener('keydown', enterHandler);
