@@ -56,14 +56,18 @@ div.mobile { display: none;}
 <p>
 	<button type="button" onclick="t.addRowAbove()">Add Row Above</button>
 	<button type="button" onclick="t.addRowBelow()">Add Row Below</button>
+	<button type="button" onclick="t.deleteRows()">Delete Rows</button>
 </p>
 <p>
 	<button type="button" onclick="t.addColLeft()">Add Col Left</button>
 	<button type="button" onclick="t.addColRight()">Add Col Right</button>
+	<button type="button" onclick="t.deleteCols()">Delete Cols</button>
 </p>
 <p>
-	<button type="button" onclick="t.deleteRows()">Delete Rows</button>
-	<button type="button" onclick="t.deleteCols()">Delete Cols</button>
+	<button type="button" onclick="t.toHeaderRows()">To Header Rows</button>
+	<button type="button" onclick="t.toHeaderCols()">To Header Cols</button>
+	<button type="button" onclick="t.toDataRows()">To Data Rows</button>
+	<button type="button" onclick="t.toDataCols()">To Data Cols</button>
 </p>
 <p>
 	<button type="button" onclick="t.merge()">Merge</button>
@@ -72,14 +76,6 @@ div.mobile { display: none;}
 <p>
 	<button type="button" onclick="t.undo()">Undo</button>
 	<button type="button" onclick="t.redo()">Redo</button>
-</p>
-<p>
-	<button type="button" onclick="t.toHeaderRows()">To Header Rows</button>
-	<button type="button" onclick="t.toHeaderCols()">To Header Cols</button>
-</p>
-<p>
-	<button type="button" onclick="t.toDataRows()">To Data Rows</button>
-	<button type="button" onclick="t.toDataCols()">To Data Cols</button>
 </p>
 <div class="desktop">
 	<p>Select & Drag then Drop to Re-Order Rows/Cols.</p>

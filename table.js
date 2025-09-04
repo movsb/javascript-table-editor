@@ -3,6 +3,14 @@
  * @property {boolean} enterSubmit 是否按下回车就提交数据。否则需要 ctrl-enter / cmd-enter。
  */
 
+/**
+ * @typedef {Object} Coords
+ * @property {number} r1
+ * @property {number} r2
+ * @property {number} c1
+ * @property {number} c2
+ */
+
 export class Table extends EventTarget {
 	/**
 	 * 
@@ -241,7 +249,7 @@ export class Table extends EventTarget {
 					document.body.appendChild(shadow);
 
 					// lazy
-					selectionCoords = this._calculateSelectionCoords();
+					selectionCoords = this._expandRange();
 				}
 
 				// 鼠标在表格内移动。
@@ -257,14 +265,14 @@ export class Table extends EventTarget {
 						const left = pp.offsetX < center;
 						placeBar(left?rc.left:rc.right, false);
 						moveCoords = {row: false, from: sc.c1, count: sc.c2-sc.c1+1, to: left ? cc.c1 : cc.c2+1};
-						moveCoords.valid = sc.valid && this._canMoveCols(moveCoords.from, moveCoords.count, moveCoords.to);
+						moveCoords.valid = this._canMoveCols(moveCoords.from, moveCoords.count, moveCoords.to);
 						this.table.style.cursor = moveCoords.valid ? 'col-resize' : 'not-allowed';
 					} else if(!isHorizontal) {
 						const middle = rc.height / 2;
 						const top = pp.offsetY < middle;
 						placeBar(top?rc.top:rc.bottom, true);
 						moveCoords = {row: true, from: sc.r1, count: sc.r2-sc.r1+1, to: top ? cc.r1 : cc.r2+1};
-						moveCoords.valid = sc.valid && this._canMoveRows(moveCoords.from, moveCoords.count, moveCoords.to);
+						moveCoords.valid = this._canMoveRows(moveCoords.from, moveCoords.count, moveCoords.to);
 						this.table.style.cursor = moveCoords.valid ? 'row-resize' : 'not-allowed';
 					}
 				}
@@ -332,7 +340,7 @@ export class Table extends EventTarget {
 				r--;
 				c = maxCols;
 			}
-			if(r > this.table.rows.length || r < 1) {
+			if(r > this._maxRows() || r < 1) {
 				this.clearSelection();
 				return false;
 			}
@@ -348,27 +356,66 @@ export class Table extends EventTarget {
 		}
 	}
 
-	_calculateSelectionCoords() {
-		const selection = [...this._selectedCells];
-		if(this.curCell) selection.push(this.curCell);
+	/**
+	 * 从 known 元素扩展选区至包含所有有效元素，也可以到整行或整列。
+	 * @param {HTMLTableCellElement[] | null} known 
+	 * @param {boolean} byRow Expand to full row?
+	 * @param {boolean} byCol Expand to full col?
+	 * @returns {Coords}
+	 */
+	_expandRange(known, byRow, byCol) {
+		if(!known) {
+			known = [...this._selectedCells];
+			if(this.curCell) known.push(this.curCell);
+		}
+		if(known.length <= 0) {
+			throw new Error('no range to expand');
+		}
 
-		let r1 = this.table.rows.length, c1 = this._maxCols(), r2 = 1, c2 = 1;
-		selection.forEach(cell => {
+		let r1=this._maxRows(), r2=1, c1=this._maxCols(), c2=1;
+
+		// first, expand to include only known.
+		known.forEach(cell => {
 			const cc = this._getCoords(cell);
 			r1 = Math.min(r1, cc.r1);
 			c1 = Math.min(c1, cc.c1);
 			r2 = Math.max(r2, cc.r2);
 			c2 = Math.max(c2, cc.c2);
 		});
-		for(let r=r1; r<=r2; r++) {
-			for(let c=c1; c<=c2; c++) {
-				const cell = this.findCell(r, c);
-				if(!this._isSelected(cell)) {
-					return {valid: false};
+
+		// second expand
+		if(byRow) {
+			c1 = 1;
+			c2 = this._maxCols();
+		}
+		if(byCol) {
+			r1 = 1;
+			r2 = this._maxRows();
+		}
+
+		// third, there may be spans, expand again and again to find largest range.
+		const expandAgain = (r1, r2, c1, c2) => {
+			let ar1=this._maxRows(), ar2=1, ac1=this._maxCols(), ac2=1;
+			for(let r=r1; r<=r2; r++) {
+				for(let c=c1; c<=c2; c++) {
+					const cell = this.findCell(r, c);
+					const cc = this._getCoords(cell);
+					ar1 = Math.min(ar1, cc.r1);
+					ac1 = Math.min(ac1, cc.c1);
+					ar2 = Math.max(ar2, cc.r2);
+					ac2 = Math.max(ac2, cc.c2);
 				}
 			}
+			return {ar1, ar2, ac1, ac2};
 		}
-		return {valid: true, r1, r2, c1, c2};
+
+		do {
+			const {ar1, ar2, ac1, ac2 } = expandAgain(r1, r2, c1, c2);
+			if(r1==ar1 && r2==ar2 && c1==ac1 && c2==ac2) { break; }
+			r1 = ar1; r2 = ar2; c1 = ac1; c2 = ac2;
+		} while(true);
+
+		return {r1, r2, c1, c2};
 	}
 
 	/**
@@ -541,68 +588,17 @@ export class Table extends EventTarget {
 	 * @param {HTMLTableCellElement} cell2 
 	 */
 	_selectRange(cell1, cell2) {
-		const expandRange = (cell1, cell2) => {
-			let cc1 = this._getCoords(cell1);
-			let cc2 = this._getCoords(cell2);
-
-			const r1 = Math.min(cc1.r1, cc2.r1);
-			const c1 = Math.min(cc1.c1, cc2.c1);
-			const r2 = Math.max(cc1.r2, cc2.r2);
-			const c2 = Math.max(cc1.c2, cc2.c2);
-
-			let mr1 = r1, mr2 = r2, mc1 = c1, mc2 = c2;
-
-			for(let r=r1; r<=r2; r++) {
-				for(let c=c1; c<=c2; c++) {
-					const cell = this.findCell(r, c);
-					const cc = this._getCoords(cell);
-					mr1 = Math.min(mr1, cc.r1);
-					mr2 = Math.max(mr2, cc.r2);
-					mc1 = Math.min(mc1, cc.c1);
-					mc2 = Math.max(mc2, cc.c2);
-				}
-			}
-
-			return {r1: mr1, r2: mr2, c1: mc1, c2: mc2};
-		}
-
-		const { r1, c1, r2, c2 } = expandRange(cell1, cell2);
+		const { r1, c1, r2, c2 } = this._expandRange([cell1, cell2], false, false);
 
 		this.clearSelection();
-		let valid = true;
 
-		Array.from(this.table.rows).forEach(row=> {
-			Array.from(row.cells).forEach(cell=> {
-				const cc = this._getCoords(cell);
-
-				let some = false;   // 部分包含？
-				let all = true;     // 全部包含？
-
-				// 被包含元素必须被完整包含。
-				for(let i=cc.r1; i<=cc.r2; i++) {
-					for(let j=cc.c1; j<=cc.c2; j++) {
-						const within = r1 <= i && i <= r2 && c1 <= j && j <= c2;
-						some |= within;
-						all  &= within;
-					}
-				}
-
-				if(some) {
-					if(all) {
-						this._highlight(cell, true);
-						this._selectedCells.push(cell);
-					} else {
-						valid = false;
-					}
-				}
-			});
-		});
-
-		if(!valid) {
-			this.clearSelection();
+		for(let r=r1; r<=r2; r++) {
+			for(let c=c1; c<=c2; c++) {
+				const cell =this.findCell(r, c);
+				this._highlight(cell, true);
+				this._selectedCells.push(cell);
+			}
 		}
-
-		return valid;
 	}
 
 	/**
@@ -757,33 +753,12 @@ export class Table extends EventTarget {
 	toDataCols()   { return this._toCells(false, 'TH', 'TD'); }
 
 	_toCells(byRow, from, to) {
-		const selected = [...this._selectedCells];
-		if(this.curCell) selected.push(this.curCell);
-		if (selected.length <= 0) {
-			alert('Please select at least one cell.');
+		if(!this.curCell && this._selectedCells.length <= 0) {
+			console.warn('no selection');
 			return false;
 		}
 
-		// 扩展选区到包含完整的行/列。
-		const maxCols = this._maxCols(), maxRows = this.table.rows.length;
-		let r1,r2,c1,c2;
-		if(byRow) {
-			c1 = 1; c2 = maxCols;
-			r1 = maxRows; r2 = 1;
-			selected.forEach(cell => {
-				const cc = this._getCoords(cell);
-				r1 = Math.min(r1, cc.r1);
-				r2 = Math.max(r2, cc.r2);
-			});
-		} else {
-			r1 = 1; r2 = maxRows;
-			c1 = maxCols; c2 = 1;
-			selected.forEach(cell => {
-				const cc = this._getCoords(cell);
-				c1 = Math.min(c1, cc.c1);
-				c2 = Math.max(c2, cc.c2);
-			});
-		}
+		const { r1, r2, c1, c2 } = this._expandRange(null, byRow, !byRow);
 
 		const clone = (cell, tag) => {
 			/** @type {HTMLTableCellElement} */
@@ -821,7 +796,7 @@ export class Table extends EventTarget {
 	addRowBelow() { return this._addRow('below'); }
 
 	_addRow(position) {
-		let newRowIndex = position == 'above' ? 0 : this.table.rows.length;
+		let newRowIndex = position == 'above' ? 0 : this._maxRows();
 
 		if (this.curCell) {
 			/** @type {HTMLTableRowElement} */
@@ -841,7 +816,7 @@ export class Table extends EventTarget {
 		const maxCols = this._maxCols();
 
 		// 如果是第一行或最后一行，则不需要计算。
-		if (newRowIndex == 0 || newRowIndex == this.table.rows.length) {
+		if (newRowIndex == 0 || newRowIndex == this._maxRows()) {
 			const tr = this.table.insertRow(newRowIndex);
 			for(let i=0; i<maxCols; i++) {
 				this._createCell(tr);
@@ -919,7 +894,7 @@ export class Table extends EventTarget {
 		// 如果是第一列，不需要计算。
 		// 如果是最后一列，直接追加。
 		if (newColIndex == 0 || newColIndex == maxCols) {
-			const rows = this.table.rows.length;
+			const rows = this._maxRows();
 			for(let i=0; i<rows; i++) {
 				const row = this.table.rows[i];
 				this._createCell(row, position=='left' ? 0 : -1);
@@ -929,7 +904,7 @@ export class Table extends EventTarget {
 			return;
 		}
 
-		const rows = this.table.rows.length;
+		const rows = this._maxRows();
 		for(let i=0; i<rows; i++) {
 			const row = this.table.rows[i];
 			const rr = i+1, rc = newColIndex+1;
@@ -1074,7 +1049,7 @@ export class Table extends EventTarget {
 		const sorted = [...new Set(cols)].sort((a,b) => b-a);
 		// console.log('deleteCols:', sorted);
 
-		const rows = this.table.rows.length;
+		const rows = this._maxRows();
 		sorted.forEach(c => {
 			const toRemove = [];
 			for(let r=1; r <= rows;) {
@@ -1275,7 +1250,7 @@ export class Table extends EventTarget {
 		}
 
 		const c1 = from, c2 = from + count - 1;
-		const rows = this.table.rows.length;
+		const rows = this._maxRows();
 		const maxCols = this._maxCols();
 
 		/**
@@ -1356,7 +1331,7 @@ export class Table extends EventTarget {
 		}
 
 		// 判断选择列的数据没有跨越到其它列。
-		const rows = this.table.rows.length;
+		const rows = this._maxRows();
 		for(let c = c1; c <= c2; c++) {
 			for(let r = 1; r <= rows;) {
 				const cell = this.findCell(r, c);
@@ -1407,7 +1382,7 @@ export class Table extends EventTarget {
 		}
 
 		const r1 = from, r2 = from + count - 1;
-		const maxRows = this.table.rows.length;
+		const maxRows = this._maxRows();
 		const maxCols = this._maxCols();
 
 		// 找出所有包含了源行、目标行、且跨行的单元格。
@@ -1509,7 +1484,7 @@ export class Table extends EventTarget {
 	 */
 	_canMoveRows(from, count, to) {
 		const r1 = from, r2 = from + count - 1;
-		const maxRows = this.table.rows.length;
+		const maxRows = this._maxRows();
 		const maxCols = this._maxCols();
 		
 		if(
@@ -1581,21 +1556,12 @@ export class Table extends EventTarget {
 	moveColsRight() { return this._move('right'); }
 
 	_move(dir) {
-		const selection = [...this._selectedCells];
-		if(this.curCell) selection.push(this.curCell);
-		if(selection.length <= 0) { return; }
+		if(!this.curCell && this._selectedCells.length <= 0) {
+			console.warn('no selection');
+			return;
+		}
 
-		const maxCols = this._maxCols();
-		const maxRows = this.table.rows.length;
-
-		let r1=maxRows, r2=1, c1=maxCols, c2=1;
-		selection.forEach(cell => {
-			const cc = this._getCoords(cell);
-			r1 = Math.min(r1, cc.r1);
-			r2 = Math.max(r2, cc.r2);
-			c1 = Math.min(c1, cc.c1);
-			c2 = Math.max(c2, cc.c2);
-		});
+		const { r1, r2, c1, c2 } = this._expandRange(null, false, false);
 
 		switch(dir) {
 		case 'up':
@@ -1625,6 +1591,9 @@ export class Table extends EventTarget {
 			});
 		});
 		return maxCol;
+	}
+	_maxRows() {
+		return this.table.rows.length;
 	}
 
 	_calcCoords(debug = false) {
@@ -1697,6 +1666,11 @@ class TableTest {
 				note: '选区：↗️',
 				init: t => { t.reset(2,2); t.selectRange(1,1,2,1); t.merge(); t.selectRange(2,1,1,2); },
 				html: '<table><tbody><tr><td rowspan="2" class="selected">1,1</td><td class="selected">1,2</td></tr><tr><td class="selected">2,2</td></tr></tbody></table>',
+			},
+			{
+				note: '选区：自动扩展',
+				init: t => { t.reset(3,3); t.selectRange(1,2,2,3); t.merge(); t.selectRange(2,1,3,2); },
+				html: '<table><tbody><tr><td class="selected">1,1</td><td rowspan="2" colspan="2" class="selected">1,2</td></tr><tr><td class="selected">2,1</td></tr><tr><td class="selected">3,1</td><td class="selected">3,2</td><td class="selected">3,3</td></tr></tbody></table>',
 			},
 			{
 				note: '插入行：向上',
@@ -1856,6 +1830,11 @@ class TableTest {
 				note: '撤销：不双重保存，因为内部调用了 split（原本也会再自己 save 一次）',
 				init: t => { t.reset(3,3); t.selectRange(1,3,3,3); t.merge(); t.selectCell(1,1); t.deleteRows(); t.undo(); },
 				html: '<table><tbody><tr><td>1,1</td><td>1,2</td><td rowspan="3">1,3</td></tr><tr><td>2,1</td><td>2,2</td></tr><tr><td>3,1</td><td>3,2</td></tr></tbody></table>',
+			},
+			{
+				note: '切换表头（自动扩展）',
+				init: t => { t.reset(2,2); t.selectRange(1,2,2,2); t.merge(); t.selectCell(1,1); t.toHeaderRows(); },
+				html: '<table><tbody><tr><th>1,1</th><th rowspan="2">1,2</th></tr><tr><th>2,1</th></tr></tbody></table>',
 			},
 			{
 				note: '切换表头',
