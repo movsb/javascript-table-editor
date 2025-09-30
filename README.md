@@ -14,6 +14,20 @@ A vanilla JavaScript Table Editor, which supports:
 
 For both Desktop and Mobile devices.
 
+## Build
+
+### all
+
+```bash
+$ bun run build
+```
+
+### publish
+
+```bash
+$ bun publish
+```
+
 ## TODO
 
 - [x] Fix move indicator bar position issue for scaled viewport on Safari.

@@ -187,7 +187,7 @@ export class Table extends EventTarget {
 		 * @param {number}  pos         Bar X if vertical; Bar Y if Horizontal.
 		 * @param {boolean} horizontal  Bar layout
 		 */
-		let placeBar = (pos, horizontal) => {
+		const placeBar = (pos, horizontal) => {
 			if (!bar) {
 				bar = document.createElement('div');
 				bar.style.position = 'fixed';
@@ -281,14 +281,37 @@ export class Table extends EventTarget {
 		if(!this._isEditing(startCell)) {
 			document.addEventListener('mousemove', moveHandler);
 
-			const mouseupHandler = e => {
-				document.removeEventListener('mousemove', moveHandler);
-
+			const clean = () => {
 				shadow && shadow.remove();
 				bar && bar.remove();
 				this.table.style.cursor = '';
+			};
 
-				if(moveCoords?.valid) {
+			let cancelled = false;
+
+			/**
+			 * 
+			 * @param {KeyboardEvent} e 
+			 */
+			const keydownHandler = e => {
+				if(e.key == 'Escape') {
+					e.preventDefault();
+					e.stopPropagation();
+					document.removeEventListener('mousemove', moveHandler);
+					document.removeEventListener('keydown', keydownHandler);
+					clean();
+					cancelled = true;
+					console.log('cancel dragging');
+				}
+				console.log('keydown:', e);
+			};
+
+			const mouseupHandler = e => {
+				document.removeEventListener('mousemove', moveHandler);
+				document.removeEventListener('keydown', keydownHandler);
+				clean();
+
+				if(!cancelled && moveCoords?.valid) {
 					const fn = moveCoords.row ? this.moveRows : this.moveCols;
 					const args = [moveCoords.from, moveCoords.count, moveCoords.to];
 					fn.apply(this, args);
@@ -296,6 +319,7 @@ export class Table extends EventTarget {
 			};
 
 			document.addEventListener('mouseup', e => mouseupHandler(e), { once: true });
+			document.addEventListener('keydown', keydownHandler);
 		}
 	}
 
