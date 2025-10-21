@@ -592,11 +592,18 @@ export class Table extends EventTarget {
 
 		this.clearSelection();
 
+		const map = new Map();
+
 		for(let r=r1; r<=r2; r++) {
 			for(let c=c1; c<=c2; c++) {
 				const cell =this.findCell(r, c);
 				this._highlight(cell, true);
-				this._selectedCells.push(cell);
+
+				// 可能有跨行、跨列元素，即：结果需要去重。
+				if (!map.has(cell)) {
+					this._selectedCells.push(cell);
+					map.set(cell, true);
+				}
 			}
 		}
 	}
@@ -1134,6 +1141,7 @@ export class Table extends EventTarget {
 			}
 		});
 
+		// 最终合并后的跨行数、跨列数。
 		const rowSpan = lastCoords.r2 - firstCoords.r1 + 1;
 		const colSpan = lastCoords.c2 - firstCoords.c1 + 1;
 
@@ -1841,6 +1849,11 @@ class TableTest {
 				note: '切换表头',
 				init: t => { t.reset(4,4); t.selectRange(1,4,2,4); t.merge(); t.toHeaderRows(); t.selectRange(4,1,4,2); t.merge(); t.toHeaderCols(); },
 				html: '<table><tbody><tr><th>1,1</th><th>1,2</th><th>1,3</th><th rowspan="2">1,4</th></tr><tr><th>2,1</th><th>2,2</th><th>2,3</th></tr><tr><th>3,1</th><th>3,2</th><td>3,3</td><td>3,4</td></tr><tr><th colspan="2">4,1</th><td>4,3</td><td>4,4</td></tr></tbody></table>',
+			},
+			{
+				note: '二次合并时候因为选区包含重复元素（错误计算）导致行被清除',
+				init: t => { t.reset(2,3); t.selectRange(2,1,2,2); t.merge(); t.selectRange(2,1,2,3); t.merge(); },
+				html: '<table><tbody><tr><td>1,1</td><td>1,2</td><td>1,3</td></tr><tr><td colspan="3" class="selected">2,1</td></tr></tbody></table>',
 			},
 		];
 	}
