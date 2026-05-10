@@ -1,6 +1,7 @@
 /**
  * @typedef {Object} Options
- * @property {boolean} enterSubmit 是否按下回车就提交数据。否则需要 ctrl-enter / cmd-enter。
+ * @property {boolean} enterSubmit 是否按下回车就提交数据。否则需要 ctrl-enter / cmd-enter。默认 true。
+ * @property {boolean} enterEdit 是否按下回车就进入编辑状态。否则需要双击单元格。默认 true。
  */
 
 /**
@@ -22,6 +23,8 @@ export class Table extends EventTarget {
 
 		/** @type {Options} */
 		this._options = options ?? {};
+		this._options.enterSubmit = this._options.enterSubmit ?? true;
+		this._options.enterEdit = this._options.enterEdit ?? true;
 
 		/** @type {HTMLElement} */
 		let elem = typeof placeholder == 'string'
@@ -33,6 +36,9 @@ export class Table extends EventTarget {
 		}
 
 		this.table = document.createElement('table');
+		// 使表格可聚焦，以便捕获键盘事件。
+		// 比如按下 TAB 开始编辑下一个单元格。
+		this.table.tabIndex = 0;
 		elem.replaceWith(this.table);
 
 		/** @type {HTMLTableCellElement | null} */
@@ -113,11 +119,18 @@ export class Table extends EventTarget {
 			this._edit(cell, true);
 		});
 
-
 		this.table.addEventListener('keydown', e => {
 			if(e.key == 'Tab' && this.curCell && this._isEditing(this.curCell)) {
 				if(this._navigate(!e.shiftKey)) {
 					e.preventDefault();
+					return;
+				}
+			}
+			if(e.key == 'Enter' && this.curCell && this._options.enterEdit) {
+				if(!this._isEditing(this.curCell)) {
+					this._edit(this.curCell, true);
+					e.preventDefault();
+					return;
 				}
 			}
 		});
@@ -533,7 +546,10 @@ export class Table extends EventTarget {
 	 *   2. 清理编辑状态
 	 */
 	getContent() {
-		return this.table.outerHTML;
+		/** @type {HTMLTableElement} */
+		const clone = this.table.cloneNode(true);
+		clone.removeAttribute('tabindex');
+		return clone.outerHTML;
 	}
 
 	/**
@@ -687,7 +703,7 @@ export class Table extends EventTarget {
 		const enterHandler = e => {
 			if(e.key != 'Enter') { return; }
 
-			const enterSubmit = this._options.enterSubmit ?? false;
+			const enterSubmit = this._options.enterSubmit;
 			const plain = !(e.ctrlKey || e.shiftKey || e.metaKey || e.altKey);
 			const modifiers = e.ctrlKey || e.metaKey;
 
@@ -730,6 +746,11 @@ export class Table extends EventTarget {
 
 			// 不再需要关心回车键。
 			cell.removeEventListener('keydown', enterHandler);
+
+			// 焦点给回表格，以允许捕获 Tab 键等。
+			this.table.focus({
+				focusVisible: false,
+			});
 		}
 	}
 
