@@ -120,15 +120,41 @@ export class Table extends EventTarget {
 		});
 
 		this.table.addEventListener('keydown', e => {
+			// 使用 TAB 导航到下一个/上一个。
 			if(e.key == 'Tab' && this.curCell && this._isEditing(this.curCell)) {
 				if(this._navigate(!e.shiftKey)) {
 					e.preventDefault();
 					return;
 				}
 			}
+			// 回车开始编辑？
 			if(e.key == 'Enter' && this.curCell && this._options.enterEdit) {
 				if(!this._isEditing(this.curCell)) {
 					this._edit(this.curCell, true);
+					e.preventDefault();
+					return;
+				}
+			}
+			// 按方向键在元素之间导航。
+			if(this.curCell && !this._isEditing(this.curCell) && e.key.startsWith('Arrow')) {
+				const cc = this._getCoords(this.curCell);
+				let nextCell = null;
+				switch(e.key) {
+					case 'ArrowUp':
+						nextCell = this.findCell(cc.r1-1, cc.c1);
+						break;
+					case 'ArrowDown':
+						nextCell = this.findCell(cc.r2+1, cc.c1);
+						break;
+					case 'ArrowLeft':
+						nextCell = this.findCell(cc.r1, cc.c1-1);
+						break;
+					case 'ArrowRight':
+						nextCell = this.findCell(cc.r1, cc.c2+1);
+						break;
+				}
+				if(nextCell) {
+					this._selectCell(nextCell, true);
 					e.preventDefault();
 					return;
 				}
