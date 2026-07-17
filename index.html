@@ -94,6 +94,7 @@ div.mobile { display: none;}
 <div id="table"></div>
 <script type="module">
 import { Table } from "./table.js";
+import { TableTest } from "./test.js";
 
 let t = new Table('#table');
 
@@ -120,6 +121,9 @@ t.addEventListener('change', ()=>{
 });
 
 reset();
+
+TableTest();
+
 </script>
 </body>
 </html>
