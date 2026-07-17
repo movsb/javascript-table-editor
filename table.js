@@ -536,11 +536,38 @@ export class Table extends EventTarget {
 	}
 
 	/**
+	 * 从 JSON 恢复表格内容。
+	 * 
+	 * 也支持从旧版本的HTML内容恢复，但不推荐使用。
+	 * 此功能会在不久后移除。
+	 * 
 	 * @param {string} data JSON 数据，来自 getJSON。
 	 */
 	use(data) {
-		this._use(data);
+		if(typeof data == 'string' && data.startsWith('<')) {
+			this._useHTML(data);
+		} else {
+			this._use(data);
+		}
 		this._save();
+	}
+
+	/**
+	 * 兼容从旧版本的HTML内容恢复表格内容。
+	 * 
+	 * @deprecated 请使用 use(json)。
+	 * 
+	 * @param {string} html 
+	 */
+	_useHTML(html) {
+		const div = document.createElement('div');
+		div.innerHTML = html;
+		const table = div.firstElementChild;
+		this.table.innerHTML = table.innerHTML;
+		this._calcCoords();
+		this.dispatchEvent(new CustomEvent('change', {
+			detail: {},
+		}));
 	}
 
 	/**
